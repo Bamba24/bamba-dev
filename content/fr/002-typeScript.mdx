@@ -1,0 +1,162 @@
+---
+title: "Introduction à TypeScript : Le JavaScript typé"
+description: "Découvrez TypeScript, un surensemble de JavaScript qui apporte la sécurité des types à vos projets web."
+tag: Typescript
+publishedAt: "2026-04-18"
+published: true
+---
+
+# Introduction à TypeScript : Le JavaScript typé
+
+TypeScript est un langage de programmation open-source développé par Microsoft qui étend JavaScript en ajoutant des types statiques optionnels. Depuis sa première version en 2012, TypeScript a gagné en popularité et est désormais largement adopté dans l'écosystème JavaScript.
+
+## Qu'est-ce que TypeScript ?
+
+TypeScript est un **surensemble de JavaScript**, ce qui signifie que tout code JavaScript valide est également du code TypeScript valide. Il ajoute des fonctionnalités comme :
+
+- **Typage statique** : Vous pouvez définir des types pour vos variables, fonctions et objets
+- **Interfaces et classes** : Support avancé pour la programmation orientée objet
+- **Génériques** : Pour créer des composants réutilisables
+- **Décorateurs** : Pour la métaprogrammation
+
+Le code TypeScript est ensuite **transpilé** en JavaScript pur, compatible avec tous les navigateurs et environnements Node.js.
+
+## Avantages de TypeScript
+
+### 1. Détection précoce des erreurs
+
+Avec le typage statique, de nombreuses erreurs sont détectées lors de la compilation plutôt qu'à l'exécution :
+
+```typescript
+// Erreur détectée à la compilation
+let age: number = "vingt-cinq"; // Type 'string' is not assignable to type 'number'
+```
+
+### 2. Meilleure maintenabilité
+
+Les types servent de documentation vivante pour votre code :
+
+```typescript
+interface User {
+  id: number;
+  name: string;
+  email: string;
+  isActive: boolean;
+}
+
+function createUser(userData: User): User {
+  // TypeScript sait exactement quelle structure attendre
+  return {
+    id: userData.id,
+    name: userData.name,
+    email: userData.email,
+    isActive: userData.isActive
+  };
+}
+```
+
+### 3. Support IDE amélioré
+
+Les éditeurs comme VS Code offrent une autocomplétion intelligente, des refactorings sûrs et une navigation précise dans le code.
+
+### 4. Évolutivité
+
+TypeScript facilite le développement d'applications complexes en imposant une structure et en prévenant les bugs courants.
+
+## Fonctionnalités clés
+
+### Types de base
+
+```typescript
+// Types primitifs
+let isDone: boolean = false;
+let decimal: number = 6;
+let color: string = "blue";
+
+// Tableaux
+let list: number[] = [1, 2, 3];
+let genericList: Array<string> = ["a", "b", "c"];
+
+// Tuples
+let tuple: [string, number] = ["hello", 10];
+
+// Enum
+enum Color {Red, Green, Blue}
+let c: Color = Color.Green;
+
+// Any (à éviter autant que possible)
+let notSure: any = 4;
+```
+
+### Interfaces et types
+
+```typescript
+interface Person {
+  readonly id: number;
+  name: string;
+  age?: number; // Propriété optionnelle
+}
+
+type Employee = Person & {
+  department: string;
+  salary: number;
+};
+```
+
+### Génériques
+
+```typescript
+function identity<T>(arg: T): T {
+  return arg;
+}
+
+let output = identity<string>("myString"); // output est de type string
+let output2 = identity(42); // output2 est de type number (inférence)
+```
+
+### Classes
+
+```typescript
+class Animal {
+  name: string;
+
+  constructor(name: string) {
+    this.name = name;
+  }
+
+  move(distanceInMeters: number = 0) {
+    console.log(`${this.name} moved ${distanceInMeters}m.`);
+  }
+}
+
+class Dog extends Animal {
+  bark() {
+    console.log('Woof! Woof!');
+  }
+}
+```
+
+## Migration vers TypeScript
+
+Pour migrer un projet JavaScript existant :
+
+1. **Installation** : `npm install typescript --save-dev`
+2. **Configuration** : Créer un `tsconfig.json`
+3. **Renommer les fichiers** : `.js` → `.ts`
+4. **Ajouter les types progressivement** : Commencer par `any` si nécessaire
+5. **Utiliser des définitions de types** : `@types/package-name` pour les bibliothèques tierces
+
+## Outils et écosystème
+
+TypeScript s'intègre parfaitement avec :
+
+- **Frameworks** : React, Vue, Angular
+- **Outils de build** : Webpack, Rollup, Vite
+- **Testeurs** : Jest, Mocha
+- **Linters** : ESLint avec des règles TypeScript
+
+## Conclusion
+
+TypeScript apporte une couche de sécurité et de productivité au développement JavaScript sans sacrifier la flexibilité du langage. Bien que la courbe d'apprentissage initiale puisse sembler raide, les bénéfices à long terme en termes de maintenabilité et de robustesse du code sont indéniables.
+
+Que vous travailliez sur un petit projet personnel ou une application d'entreprise complexe, TypeScript peut considérablement améliorer votre expérience de développement. Commencez petit, ajoutez des types progressivement, et profitez des avantages d'un JavaScript plus sûr et expressif !

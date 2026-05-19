@@ -1,0 +1,193 @@
+---
+title: React 19 New Features
+description: Discover the additions in React 19
+tag: React
+publishedAt: "2026-05-07"
+published: true
+---
+
+# React 19: What to Remember
+
+React 19 brings a series of improvements designed to make applications smoother, easier to maintain, and better integrated with modern frameworks.
+
+## 1. More Stable Concurrent Rendering
+
+Concurrent mode continues to evolve. React 19 improves the rendering engine's ability to interrupt long tasks and prioritize user interactions.
+
+- Non-blocking rendering for important updates
+- Better interface transition management
+- Reductions in user response latency
+
+### Example: `startTransition`
+
+```tsx
+import { useState, startTransition } from 'react';
+
+function Search() {
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState<string[]>([]);
+
+  function handleChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const value = event.target.value;
+    setQuery(value);
+
+    startTransition(() => {
+      const filtered = fetchSuggestions(value);
+      setResults(filtered);
+    });
+  }
+
+  return (
+    <div>
+      <input value={query} onChange={handleChange} placeholder="Search..." />
+      <ul>{results.map((item) => <li key={item}>{item}</li>)}</ul>
+    </div>
+  );
+}
+```
+
+> Here, `startTransition` tells React that the results update can be deferred if the thread is busy.
+
+## 2. `useEvent` and Improved Event Handling
+
+`useEvent` allows attaching event callbacks without unnecessarily recreating the function on every render.
+
+```tsx
+import { useEvent } from 'react';
+
+function FavoriteButton({ onToggle }: { onToggle: () => void }) {
+  const handleClick = useEvent(() => {
+    onToggle();
+  });
+
+  return <button onClick={handleClick}>Add to favorites</button>;
+}
+```
+
+This hook is useful for components that receive callbacks as props and want to minimize re-renders. It also ensures that the callback always uses the latest captured values.
+
+## 3. `useDeferredValue` to Smooth Interfaces
+
+When you have heavy data to display, `useDeferredValue` allows delaying part of the rendering while keeping the input field reactive.
+
+```tsx
+import { useDeferredValue, useMemo } from 'react';
+
+function FilteredList({ items }: { items: string[] }) {
+  const [query, setQuery] = useState('');
+  const deferredQuery = useDeferredValue(query);
+
+  const filteredItems = useMemo(
+    () => items.filter((item) => item.toLowerCase().includes(deferredQuery.toLowerCase())),
+    [items, deferredQuery]
+  );
+
+  return (
+    <div>
+      <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Filter" />
+      <ul>{filteredItems.map((item) => <li key={item}>{item}</li>)}</ul>
+    </div>
+  );
+}
+```
+
+## 4. `useSyncExternalStore` for External State Sources
+
+React 19 continues to encourage reactive libraries by standardizing access to external stores.
+
+```tsx
+import { useSyncExternalStore } from 'react';
+
+function subscribeToStore(store: any, callback: () => void) {
+  store.subscribe(callback);
+  return () => store.unsubscribe(callback);
+}
+
+function useExternalData(store: any) {
+  return useSyncExternalStore(
+    (callback) => subscribeToStore(store, callback),
+    () => store.getState(),
+    () => store.getState()
+  );
+}
+
+function Counter() {
+  const count = useExternalData(counterStore);
+  return <div>External counter: {count}</div>;
+}
+```
+
+This pattern is particularly relevant for state management libraries and real-time API integrations.
+
+## 5. SSR / Hydration Optimizations
+
+Hybrid applications benefit from more robust server-side rendering and progressive hydration.
+
+### Example: Client/Server Component
+
+```tsx
+'use client';
+
+import { useState } from 'react';
+
+export default function ClientCounter() {
+  const [count, setCount] = useState(0);
+  return <button onClick={() => setCount((value) => value + 1)}>Count: {count}</button>;
+}
+```
+
+React 19 improves the decoupling between server rendering and client rendering, reducing issues where hydration gets out of sync.
+
+## 6. Performance Best Practices
+
+React 19 doesn't eliminate the need to write clean code:
+
+- `React.memo` for pure components
+- `useMemo` and `useCallback` for expensive calculations or functions
+- `lazy` + `Suspense` for loading components on demand
+- `startTransition` to defer non-urgent tasks
+
+### Example: `React.memo`
+
+```tsx
+import { memo } from 'react';
+
+const TagList = memo(function TagList({ tags }: { tags: string[] }) {
+  return (
+    <ul>
+      {tags.map((tag) => <li key={tag}>{tag}</li>)}
+    </ul>
+  );
+});
+```
+
+## 7. Accessibility and React 19 Conventions
+
+React 19 encourages the use of accessible components from the ground up:
+
+- consistent `aria-*` attributes
+- clear semantic structure
+- correct keyboard handling
+
+### Example of an Accessible Button
+
+```tsx
+function IconButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button type="button" aria-label={label} onClick={onClick}>
+      <span aria-hidden="true">⭐</span>
+    </button>
+  );
+}
+```
+
+## Conclusion
+
+React 19 doesn't change the basics, but refines the ecosystem:
+
+- more mature hooks for event handling and deferred rendering,
+- better SSR integration,
+- more stability for external streams,
+- and more reactive interfaces.
+
+To get started well, test `useEvent`, `useDeferredValue` and `useSyncExternalStore` in concrete cases, and prioritize deferred rendering for heavy interfaces.

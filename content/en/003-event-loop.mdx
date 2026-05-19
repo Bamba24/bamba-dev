@@ -1,0 +1,139 @@
+---
+title: Understanding the Event Loop, Call Stack and Queues in JavaScript
+description: A detailed guide on JavaScript's internal workings, including the Event Loop, Call Stack, Microtasks and Macrotasks.
+tag: JavaScript
+publishedAt: "2026-05-05"
+published: true
+---
+
+# Understanding the Event Loop, Call Stack and Queues in JavaScript
+
+JavaScript is a single-threaded asynchronous programming language, meaning it executes one task at a time. But how does it handle asynchronous operations like network calls, timers, or user events? The answer lies in the **Event Loop**, the **Call Stack**, and the **Queues**. In this article, we will explore these fundamental concepts that are at the heart of JavaScript's operation.
+
+## The Call Stack
+
+The Call Stack is a LIFO (Last In, First Out) data structure that keeps track of executing functions. Every time a function is called, it is added to the top of the stack. When a function finishes, it is removed from the stack.
+
+```javascript
+function fonctionA() {
+  console.log('A');
+  fonctionB();
+  console.log('Back to A');
+}
+
+function fonctionB() {
+  console.log('B');
+}
+
+fonctionA();
+// Output: A, B, Back to A
+```
+
+In this simple example:
+1. `fonctionA` is added to the Call Stack
+2. `console.log('A')` executes
+3. `fonctionB` is added to the Call Stack
+4. `console.log('B')` executes
+5. `fonctionB` is removed from the Call Stack
+6. `console.log('Back to A')` executes
+7. `fonctionA` is removed from the Call Stack
+
+<Note>
+The Call Stack can cause "stack overflow" errors if it becomes too deep, for example with infinite recursion.
+</Note>
+
+## The Queues: Microtask Queue and Macrotask Queue
+
+JavaScript uses two types of queues to manage asynchronous tasks:
+
+### Microtask Queue
+- High priority
+- Contains tasks like Promises (`.then()`, `.catch()`), `MutationObserver`, `queueMicrotask()`
+- Microtasks are executed after each Call Stack task, before the Event Loop moves to macrotasks
+
+### Macrotask Queue (or Task Queue)
+- Lower priority
+- Contains tasks like `setTimeout`, `setInterval`, I/O events, user events
+- Also called "Callback Queue"
+
+```javascript
+console.log('Start');
+
+setTimeout(() => {
+  console.log('Macrotask');
+}, 0);
+
+Promise.resolve().then(() => {
+  console.log('Microtask');
+});
+
+console.log('End');
+
+// Output: Start, End, Microtask, Macrotask
+```
+
+In this example:
+1. `console.log('Start')` executes
+2. `setTimeout` adds a macrotask to the Macrotask Queue
+3. `Promise.resolve().then()` adds a microtask to the Microtask Queue
+4. `console.log('End')` executes
+5. Call Stack is empty, Event Loop checks Microtasks
+6. The microtask executes: `console.log('Microtask')`
+7. Event Loop checks Macrotasks
+8. The macrotask executes: `console.log('Macrotask')`
+
+## The Event Loop
+
+The Event Loop is the mechanism that allows JavaScript to handle asynchrony. Here's how it works:
+
+1. **Synchronous execution**: Synchronous tasks are executed in the Call Stack
+2. **Microtask check**: After each synchronous task, the Event Loop completely empties the Microtask Queue
+3. **Macrotask check**: Once the Microtask Queue is empty, the Event Loop takes the first task from the Macrotask Queue and executes it
+4. **Repetition**: The cycle starts again
+
+```javascript
+console.log('1');
+
+setTimeout(() => {
+  console.log('2');
+  Promise.resolve().then(() => console.log('3'));
+}, 0);
+
+Promise.resolve().then(() => {
+  console.log('4');
+  setTimeout(() => console.log('5'), 0);
+});
+
+console.log('6');
+
+// Output: 1, 6, 4, 2, 3, 5
+```
+
+Let's analyze this more complex example:
+1. `console.log('1')` → Output: 1
+2. `setTimeout` adds a macrotask (2,3) to the Macrotask Queue
+3. `Promise.resolve().then()` adds a microtask (4,5) to the Microtask Queue
+4. `console.log('6')` → Output: 6
+5. Call Stack empty → Microtask execution: `console.log('4')`, then `setTimeout` adds (5) to Macrotask Queue → Output: 4
+6. Microtask Queue empty → First Macrotask execution: `console.log('2')`, then `Promise.resolve().then()` adds (3) to Microtask Queue → Output: 2
+7. Call Stack empty → Microtask execution: `console.log('3')` → Output: 3
+8. Microtask Queue empty → Next Macrotask execution: `console.log('5')` → Output: 5
+
+<Note>
+The Event Loop ensures that microtasks are always processed before macrotasks, which explains why Promises are resolved before setTimeout with a 0ms delay.
+</Note>
+
+## Practical Implications
+
+Understanding these mechanisms is crucial for writing performant JavaScript code and avoiding common pitfalls:
+
+- **Avoid blocking operations** in the Call Stack
+- **Use Microtasks** (Promises) for priority operations
+- **Understand the execution order** to debug asynchronous issues
+- **Use Web APIs** (setTimeout, fetch, etc.) for non-blocking operations
+
+These concepts are not only important for client-side JavaScript, but also for server-side Node.js, where the Event Loop handles HTTP requests, file access, and other I/O operations.
+
+<Youtube id="8aGhZQkoFbQ" />
+
+To deepen your knowledge, I recommend consulting the ECMAScript specification and experimenting with code examples in your development console.
