@@ -1,0 +1,119 @@
+﻿Revue accessibilité / performance / SEO - Layout général
+
+1. Résumé général
+
+- Le projet utilise une architecture `app/` moderne et un layout dynamique avec locale. C'est un bon point pour le SEO et l'internationalisation.
+- Les composants de navigation et la structure sémantique sont globalement cohérents, mais plusieurs optimisations sont possibles sur l'accessibilité (ARIA, labels, contrôle clavier) et la performance (client components inutiles, formulaires non fonctionnels, métadonnées imprécises).
+
+2. Accessibilité (A11Y)
+
+2.1. Header et navigation
+- `Header.tsx` utilise des boutons d'icônes sans `aria-label` : thème, menu mobile.
+  - Solution : ajouter `aria-label="Basculer thème"` et `aria-label="Ouvrir le menu"`.
+- Le `SheetTrigger` avec l'icône Menu n'est pas explicite pour les lecteurs d'écran.
+  - Solution : ajouter `aria-label` ou contenu textuel masqué.
+- La navigation mobile masque le focus visible possible. Vérifier que tous les éléments du `Sheet` sont accessibles au clavier et focusables.
+- Ajouter un lien "Skip to content" au début du layout : cela améliore l'expérience pour les lecteurs d'écran et la navigation clavier.
+
+2.2. Formulaires et champs de saisie
+- Les sections "Newsletter" sur la page d'accueil et la page de tag utilisent un `input` et un `button` sans `<form>` ni `<label>`.
+  - Solution : encapsuler dans `<form>` et utiliser `<label htmlFor="newsletter-email">` ou `aria-label`.
+  - Remplacer le bouton simple par `<button type="submit">` et ajouter un feedback visuel sur l'erreur/confirmation.
+- Dans `FilteredPosts`, les boutons de tag n'ont pas `type="button"`.
+  - Risque : dans un futur `<form>`, ils peuvent se comporter comme des boutons de soumission.
+  - Solution : `type="button"` + `aria-pressed={activeTag === tag}`.
+
+2.3. Semantique HTML
+- Les `nav` sont bien présents, mais aucune `aria-label` explicite n'est définie sur les barres de navigation secondaires.
+  - Solution : `nav aria-label="Navigation par tags"` pour la sidebar et le menu mobile.
+- Les pages utilisent `h1` correctement, mais `PostCard` n'a pas de titre alternatif explicite pour le lien global.
+  - Solution : ajouter `aria-label={`Lire l'article ${post.title}`}` au lien si nécessaire.
+
+2.4. Contraste et texte
+- Les contrastes sont généralement corrects, mais vérifier avec un outil le texte `text-zinc-400` sur fond clair pour les éléments discrets.
+- Les placeholders ne doivent pas être le seul élément descriptif d'un champ. Ajouter un label explicite pour l'input email.
+
+3. Performance
+
+3.1. Client Components inutiles
+- `PostCard.tsx` est marqué `"use client"`, alors qu'il ne gère pas d'état interne ni d'effet.
+  - Solution : retirer `"use client"` si le composant peut être rendu côté serveur, ou le transformer en composant serveur si `useI18n` a une alternative serveur.
+- `FilteredPosts` est chargé dynamiquement, ce qui est bien pour l'interactivité, mais cela ajoute du JavaScript client.
+  - Vérifier si la recherche peut être gérée côté serveur ou par un composant progressively enhanced plutôt que d'import dynamique systématique.
+
+3.2. Font loading et layout
+- Le layout charge deux fonts Google (`Geist` et `Geist_Mono`). C'est acceptable, mais limiter le nombre de familles et sous-ensembles améliore le LCP.
+  - Solution : s'assurer qu'une seule famille est utilisée sur la majorité du site, charger l'autre en `display: swap` via Next.js automatique.
+
+3.3. Images et Open Graph
+- Les metadata Open Graph dans `layout.tsx` utilisent `url: "https://ton-domaine.com"` et `metadataBase` est défini via env.
+  - Solution : utiliser l'URL réelle du site dans le code source et s'assurer que `NEXT_PUBLIC_SITE_URL` est bien renseigné en production.
+- Si le site affiche des images dans les articles, utiliser `next/image` pour optimiser les formats et le lazy loading.
+
+3.4. Layout et CSS
+- `body` a `min-h-full flex flex-col`; bon.
+- L'usage répété de grandes classes `max-w-4xl mx-auto px-6 py-...` est correct, mais vérifier les points de rupture responsive pour éviter des sauts de layout inutiles.
+- Pour les sections `grid grid-cols-[1fr_200px]`, tester sur mobile pour éviter les colonnes trop étroites quand elles deviennent flexibles.
+
+4. SEO
+
+4.1. Métadonnées globales
+- La configuration `metadata` de `layout.tsx` est bonne, mais :
+  - `openGraph.url` doit pointer vers le domaine réel.
+  - `metadataBase` doit être cohérent avec `process.env.NEXT_PUBLIC_SITE_URL`.
+  - Ajouter `robots: { index: true, follow: true }` si nécessaire.
+- Penser à ajouter une balise `twitter:creator` si le compte X/Twitter existe.
+
+4.2. Métadonnées par article
+- `app/[locale]/posts/[slug]/page.tsx` définit le `title`, la `description`, Open Graph, `twitter`. Très bien.
+- Ajouter si possible :
+  - `keywords` basés sur les tags/post.
+  - `alternates` si vous utilisez l’internationalisation de route.
+  - `robots` personnalisés pour les pages non indexables (404, noindex si nécessaire).
+
+4.3. Contenu et structure
+- Les pages d’article utilisent `article`, `header`, `footer` ; c'est positif pour le SEO.
+- Le contenu du MDX doit conserver des titres structurés (`h2`, `h3`) et des listes. Vérifier que `Mdx` n'injecte pas de fragments non-sémantiques.
+
+4.4. Liens internes
+- Les liens internes vers `/subscribe`, `/categories`, `/tags/...` sont bons, mais vérifier que les routes existent et sont indexables.
+- Les liens d'ancrage ou de retour devraient idéalement utiliser un `rel` ou `aria-label` si le texte n'est pas explicite.
+
+5. Corrections spécifiques recommandées
+
+5.1. `Header.tsx`
+- Ajouter `aria-label` sur les boutons d'action.
+- Ajouter `type="button"` sur le bouton du thème.
+- Vérifier l'accessibilité du menu mobile.
+
+5.2. `app/[locale]/page.tsx` et `app/[locale]/tags/[tag]/page.tsx`
+- Transformer la zone newsletter en formulaire (`<form>`).
+- Ajouter labels/aria pour l'email.
+- Ajouter `nav aria-label` sur les blocs de tags.
+- Remplacer les `input` isolés par des composants de formulaire pleinement accessibles.
+
+5.3. `PostCard.tsx`
+- Retirer `"use client"` si le composant peut être rendu serveur.
+- Ajouter un label d'accessibilité sur le lien si la lecture du lien est ambiguë.
+
+5.4. `FilteredPosts.tsx`
+- Ajouter `type="button"` sur tous les boutons.
+- Ajouter `aria-pressed` pour les boutons de filtrage de tag.
+- Ajouter un label explicite pour la recherche (par exemple `<label className="sr-only">Recherche</label>`).
+
+6. Recommandations bonus
+
+- Ajouter un lien "Passer au contenu" (`skip-link`).
+- Vérifier les temps de chargement avec Lighthouse et cibler LCP / CLS.
+- Vérifier l'usage de `suppressHydrationWarning` : il doit être justifié par du HTML rendu différemment entre serveur et client.
+- Vérifier que `Header` et `LangueSwitch` ne créent pas de contenu non accessible lors du rendu côté serveur.
+
+7. Conclusion
+
+La structure de layout est solide et moderne, mais il reste des améliorations simples à apporter :
+- renforcer l'accessibilité des contrôles interactifs,
+- corriger les formulaires et les labels,
+- vérifier les métadonnées SEO et le domaine réel,
+- diminuer le JavaScript côté client quand un composant peut rester serveur.
+
+Ces actions donneront un gain important en accessibilité, en performance et en SEO sans changer l'architecture générale du site.
