@@ -2,12 +2,12 @@ export default {
 
   // Header 
   'header.name': "BambaDev",
-  'header.home': "home",
-  'header.posts': "posts",
+  'header.home': "Home",
+  'header.posts': "Posts",
   'header.link': "{name}",
-  'header.category': "category",
-  'header.about': "about",
-  'header.subscribe': "subscribe",
+  'header.category': "Category",
+  'header.about': "About",
+  'header.subscribe': "Subscribe",
 
   // Hero Section
   'hero.title': 'bamba',

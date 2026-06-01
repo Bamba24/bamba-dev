@@ -1,0 +1,144 @@
+---
+title: L'asynchronisme en JavaScript 
+description: Un guide pratique pour comprendre l'asynchronisme en JavaScript avec les callbacks, les Promises et async/await.
+tag: JavaScript
+publishedAt: "2026-06-01"
+published: true
+time: 7
+---
+
+# L'asynchronisme en JavaScript : `Callbacks`, `Promises` et `Async/Await`
+
+JavaScript est mono-thread, mais il gère tout de même plusieurs opérations en parallèle. Cette puissance vient de la programmation asynchrone : lancer une opération maintenant et la terminer plus tard sans bloquer le fil principal.
+
+## Pourquoi l'asynchronisme est nécessaire
+
+Dans le navigateur et dans Node.js, beaucoup d'opérations sont lentes ou imprévisibles :
+
+- `requêtes réseau`
+- `lecture/écriture de fichiers`
+- `timers`
+- `événements utilisateur`
+
+Si JavaScript attendait la fin de chaque opération, l'interface se figerait et l'application deviendrait non responsive. L'asynchronisme permet à JavaScript de continuer à exécuter du code pendant que ces opérations se terminent.
+
+## `Callbacks` : le modèle ancien
+
+Un callback est une fonction passée en argument et appelée plus tard, lorsque la tâche asynchrone est terminée.
+
+```javascript
+function fetchData(url, callback) {
+  setTimeout(() => {
+    const data = { url, status: 200 };
+    callback(data);
+  }, 1000);
+}
+
+fetchData('/api/data', (response) => {
+  console.log('Données reçues', response);
+});
+```
+
+Les `callbacks` fonctionnent, mais ils peuvent générer du code imbriqué et difficile à suivre. C'est ce qu'on appelle le "callback hell".
+
+## `Promises` : des flux plus lisibles
+
+Une `Promise` représente une opération qui se terminera dans le futur. Elle peut être en attente, résolue ou rejetée.
+
+```javascript
+function fetchData(url) {
+  return new Promise((resolve, reject) => {
+    setTimeout(() => {
+      const success = true;
+      if (success) {
+        resolve({ url, status: 200 });
+      } else {
+        reject(new Error('Échec de la requête'));
+      }
+    }, 1000);
+  });
+}
+
+fetchData('/api/data')
+  .then((response) => {
+    console.log('Données reçues', response);
+  })
+  .catch((error) => {
+    console.error('Erreur', error);
+  });
+```
+
+Les Promises sont plus simples à chaîner et à gérer que les callbacks. Elles s'intègrent également à la microtask queue de JavaScript, ce qui rend leur exécution plus prévisible.
+
+## `Async/Await` : la syntaxe la plus lisible
+
+`async` et `await` permettent d'écrire du code asynchrone qui ressemble à du code synchrone.
+
+```javascript
+async function loadData() {
+  try {
+    const response = await fetchData('/api/data');
+    console.log('Données reçues', response);
+  } catch (error) {
+    console.error('Erreur', error);
+  }
+}
+
+loadData();
+```
+
+En coulisse, `await` met la fonction en pause jusqu'à la résolution de la Promise, mais sans bloquer le fil principal.
+
+## `Event Loop` : comment JavaScript gère les tâches asynchrones
+
+JavaScript distingue aujourd'hui les microtasks et les macrotasks.
+
+- Microtasks : `Promise.then`, `Promise.catch`, `queueMicrotask`
+- Macrotasks : `setTimeout`, `setInterval`, `callbacks I/O`
+
+L'event loop traite toujours les microtasks avant de passer à la macrotask suivante.
+
+```javascript
+console.log('Début');
+
+setTimeout(() => {
+  console.log('Timeout');
+}, 0);
+
+Promise.resolve().then(() => {
+  console.log('Promise');
+});
+
+console.log('Fin');
+
+// Sortie : Début, Fin, Promise, Timeout
+```
+
+Comprendre cet ordre est essentiel pour éviter des conditions de course et garantir l'ordre d'exécution attendu.
+
+## Bonnes pratiques pour l'asynchronisme
+
+- privilégiez `async` / `await` pour la lisibilité
+- gérez les rejets de Promise avec `.catch()` ou `try/catch`
+- évitez les callbacks profondément imbriqués
+- utilisez `Promise.all()` pour exécuter plusieurs tâches indépendantes en parallèle
+- n'utilisez `await` que dans des fonctions `async`
+- évitez les opérations longues dans le fil principal lorsque c'est possible
+
+## Exemple pratique : chargement de plusieurs ressources
+
+```javascript
+async function loadAll() {
+  const urls = ['/api/user', '/api/posts', '/api/settings'];
+  const results = await Promise.all(urls.map(fetchData));
+  console.log(results);
+}
+
+loadAll();
+```
+
+Cet exemple montre comment les Promises améliorent les performances en exécutant plusieurs tâches asynchrones en parallèle.
+
+## Conclusion
+
+L'asynchronisme est un élément clé de JavaScript. Il permet des applications réactives en laissant les opérations longues se dérouler en arrière-plan pendant que le fil principal continue d'exécuter du code. Maîtriser les callbacks, les Promises et `async`/`await` est indispensable pour écrire du JavaScript moderne et maintenable.

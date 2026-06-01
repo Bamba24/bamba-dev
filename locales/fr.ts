@@ -7,7 +7,7 @@ export default {
   'header.home': "Acceuil",
   'header.posts': "Articles",
   'header.link': "{name}",
-  'header.category': "categories",
+  'header.category': "Categories",
   'header.about': "A propos",
   'header.subscribe': "S'abonner",
 

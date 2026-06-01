@@ -1,19 +1,14 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Nunito } from "next/font/google";
 import { ThemeProvider } from "@/components/themeProvider"
-import Header from "@/components/Header";
 import ProviderLayout from "./provider";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const geistSans = Nunito({
+  variable: "--font-nunito-sans",
   subsets: ["latin"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'https://bambadev.com'),
@@ -25,7 +20,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "BambaDev",
     description: "Partage de connaissances sur le développement web et mobile.",
-    url: "https://ton-domaine.com",
+    url: process.env.NEXT_PUBLIC_SITE_URL || 'https://bambadev.com',
     siteName: "BambaDev",
     images: [
       {
@@ -58,7 +53,7 @@ export default async function RootLayout({
   return (
     <html
       lang={locale} // Utilise la vraie locale ici au lieu de "fr" en dur
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} h-full antialiased  `}
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col">
@@ -69,7 +64,6 @@ export default async function RootLayout({
          disableTransitionOnChange
         >
         <ProviderLayout params={params}>
-            <Header />
             {children}
         </ProviderLayout>
         </ThemeProvider>

@@ -1,35 +1,28 @@
 import React from 'react'
 import { notFound } from 'next/navigation';
 import { getPostBySlug, getPosts } from '@/lib/posts';
-import NotFound from './notFound';
 import Mdx from '@/features/mdx/Mdx';
-import { Badge } from "@/components/ui/badge";
-import { CalendarIcon, Clock, ArrowLeft } from "lucide-react";
+import { Calendar, Clock, ArrowLeft, ArrowUpRight, Sparkles } from "lucide-react";
 import Link from 'next/link';
 import { getI18n } from '@/locales/server'
 import type { Metadata } from "next";
 import { setStaticParamsLocale } from 'next-international/server'
 
-export const dynamicParams = true; // Permet de générer les pages à la volée si besoin
-// Bloque le pré-rendu strict au build si l'i18n n'est pas encore instancié
-export const dynamic = 'force-dynamic';
+export const dynamic = 'force-static';
+export const dynamicParams = true; 
 
-// 1. Force la page à se mettre à jour en arrière-plan toutes les heures max
-export const revalidate = 3600; 
-
-// 2. Dit à Next.js de pré-générer tous les articles existants au moment du build
 export async function generateStaticParams() {
   const locales = ['fr', 'en'];
   const params: Array<{ locale: string; slug: string }> = [];
 
-  
   for (const locale of locales) {
-    setStaticParamsLocale(locale);
     try {
       const posts = await getPosts(locale);
-      posts.forEach(post => {
-        params.push({ locale, slug: post.slug });
-      });
+      if (posts && Array.isArray(posts)) {
+        posts.forEach(post => {
+          params.push({ locale, slug: post.slug });
+        });
+      }
     } catch (error) {
       console.error(`Erreur generateStaticParams pour la locale ${locale}:`, error);
     }
@@ -44,19 +37,14 @@ export async function generateMetadata({
   params: Promise<{ slug: string; locale: string }> 
 }): Promise<Metadata> {
   const { slug, locale } = await params;
+
+  if (!locale || locale === '[locale]') return {} as Metadata;
+  if (!slug || typeof slug !== 'string' || !/^[a-z0-9\-]+$/.test(slug)) return {} as Metadata;
+
+  setStaticParamsLocale(locale);
+
   const post = await getPostBySlug(slug, locale);
 
-   // Valider le slug
-    if (!slug || typeof slug !== 'string') {
-        notFound();
-    }
-      
-      // Vérifier que le slug ne contient que des caractères sûrs
-      if (!/^[a-z0-9\-]+$/.test(slug)) {
-        notFound();
-      }
-
-  // Sécurité : Si l'article n'existe pas
   if (!post) {
     return {
       title: "Article non trouvé | bambaDev",
@@ -66,11 +54,8 @@ export async function generateMetadata({
   const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
 
   return {
-    // Le titre qui apparaîtra sur l'onglet du navigateur
-    title: post.title, 
-    description: post.description || "Article technique sur bambaDev",
-    
-    // Configuration OpenGraph (LinkedIn, Facebook, Discord...)
+    title: `${post.title} | bambaDev`, 
+    description: post.description || "Article technique",
     openGraph: {
       title: post.title,
       description: post.description,
@@ -79,15 +64,9 @@ export async function generateMetadata({
       publishedTime: post.publishedAt,
       locale: locale === "fr" ? "fr_FR" : "en_US",
       siteName: "bambaDev",
-      // Remarque : Tu n'as PAS besoin de spécifier la clé `images` ici !
-      // Next.js détecte automatiquement ton fichier `opengraph-image.tsx` 
-      // et l'associera tout seul à cet article.
-       authors: ["BambaDev"],
-      // Ajouter les tags
-       tags: [post.tag],
+      authors: ["BambaDev"],
+      tags: [post.tag],
     },
-
-    // Configuration pour Twitter / X
     twitter: {
       card: "summary_large_image",
       title: post.title,
@@ -96,129 +75,168 @@ export async function generateMetadata({
   };
 }
 
+export default async function Post({ params }: { params: Promise<{ slug: string, locale: string }> }) {
+  const { slug, locale } = await params;
 
-export default async function Post({params}: {params: Promise<{slug: string, locale: string}>}) {
-  const {slug, locale} = await params;
+  if (!locale || locale === '[locale]') return null;
+  if (!slug || typeof slug !== 'string' || !/^[a-z0-9\-]+$/.test(slug)) return notFound();
+
+  setStaticParamsLocale(locale);
+
   const post = await getPostBySlug(slug, locale);
-  const t = await getI18n()
-
-   // Valider le slug
-   if (!slug || typeof slug !== 'string') {
-      notFound();
-    }
-      
-    // Vérifier que le slug ne contient que des caractères sûrs
-    if (!/^[a-z0-9\-]+$/.test(slug)) {
-      notFound();
-    }
+  const t = await getI18n();
 
   if (!post) {
-    return NotFound();
+    return notFound();
   }
 
   const allPosts = await getPosts(locale);
   const similarPosts = allPosts
-    .filter((item) => item.tag === post.tag && item.slug !== slug)
-    .slice(0, 3);
+    ? allPosts.filter((item) => item.tag === post.tag && item.slug !== slug).slice(0, 2) // Limité à 2 pour une grille équilibrée
+    : [];
 
   return (
-    <article className="max-w-3xl mx-auto px-4 py-12 animate-in fade-in duration-500">
-      {/* Bouton Retour */}
-      <Link 
-        href="/" 
-        className="inline-flex items-center text-sm text-muted-foreground hover:text-amber-600 mb-8 transition-colors group"
-      >
-        <ArrowLeft className="mr-2 h-4 w-4 group-hover:-translate-x-1 transition-transform" />
-        {t('nav.back_to_home')}
-      </Link>
+    <main className="max-w-4xl mx-auto px-4 py-12 sm:py-16 sm:px-6 lg:py-24 transition-colors duration-300"> 
+      
+      {/* 1. RETOUR À L'ACCUEIL */}
+      <div className="mb-12">
+        <Link 
+          href={`/${locale}`} 
+          className="inline-flex items-center text-xs font-mono tracking-widest text-zinc-400 dark:text-zinc-500 hover:text-amber-600 dark:hover:text-amber-500 uppercase transition-all group"
+        >
+          <ArrowLeft className="mr-2 h-3.5 w-3.5 group-hover:-translate-x-1 transition-transform" aria-hidden="true" />
+          {t('nav.back_to_home')}
+        </Link>
+      </div>
 
-      {/* En-tête de l'article */}
-      <header className="space-y-6 mb-10">
+      {/* 2. EN-TÊTE ÉDITORIAL DE L'ARTICLE */}
+      <header className="space-y-6 pb-12 border-b border-zinc-100 dark:border-zinc-900 mb-12">
         <div className="space-y-4">
-          <Badge variant="secondary" className="rounded-full px-4 py-1 bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-400">
-            {/* Si post.tag est déjà une chaîne propre, affiche-la directement ou passe-la au i18n */}
-            {post.tag}
-          </Badge>
-          <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight leading-tight text-zinc-900 dark:text-zinc-50">
+          <span className="inline-flex items-center text-xs font-mono tracking-wider uppercase text-amber-600 dark:text-amber-500 font-semibold">
+            #{post.tag}
+          </span>
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-normal tracking-tight text-zinc-900 dark:text-zinc-50 leading-[1.15]">
             {post.title}
           </h1>
         </div>
 
-        <div className="flex flex-wrap items-center gap-6 text-muted-foreground text-sm">
-          <div className="flex items-center gap-2">
-            <CalendarIcon className="h-4 w-4" />
+        {/* Méta-données en ligne style Index technique */}
+        <div className="flex flex-wrap items-center gap-4 text-zinc-400 dark:text-zinc-500 text-xs font-mono uppercase tracking-wider">
+          <div className="flex items-center gap-1.5">
+            <Calendar className="h-3.5 w-3.5 opacity-70" aria-hidden="true" />
             <time dateTime={post.publishedAt}>
-              {/* CORRECTION : Utilisation de la locale dynamique pour éviter les bugs d'hydratation */}
               {new Date(post.publishedAt).toLocaleDateString(locale, {
-                day: 'numeric',
-                month: 'long',
+                day: '2-digit',
+                month: 'short',
                 year: 'numeric'
               })}
             </time>
           </div>
-          <div className="flex items-center gap-2">
-            <Clock className="h-4 w-4" />
-            {/* Si ta clé prend en charge le temps dynamique : t('post.read_time', { time: post.readingTime }) */}
-            <span>{t('post.read_time')}</span> 
+          <span className="w-1 h-1 rounded-full bg-zinc-200 dark:bg-zinc-800" />
+          <div className="flex items-center gap-1.5">
+            <Clock className="h-3.5 w-3.5 opacity-70" aria-hidden="true" />
+            <span> {post.time} {t('post.read_time')}</span> 
           </div>
         </div>
-        
       </header>
 
-      {/* Contenu de l'article avec Shiki géré par le composant Mdx */}
-      <div className="prose prose-zinc dark:prose-invert max-w-none 
-        prose-headings:scroll-mt-20 
-        prose-h2:text-3xl prose-h2:border-b prose-h2:pb-2 dark:prose-h2:border-zinc-800
-        prose-a:text-amber-600 hover:prose-a:text-amber-500
-        prose-img:rounded-xl prose-img:shadow-lg">
-        
-        <Mdx>{post.content}</Mdx>
-      </div>
+        {/* 3. CORPS DE L'ARTICLE (Prose ciselée) */}
+        <div className="prose prose-zinc dark:prose-invert max-w-none break-words
+          prose-p:text-zinc-600 dark:prose-p:text-zinc-300 prose-p:leading-relaxed prose-p:font-light text-sm md:text-base
+         
+          prose-headings:text-zinc-900 
+          dark:prose-headings:text-zinc-50 
+          prose-headings:font-normal 
+          prose-headings:tracking-tight
 
-      {/* Articles similaires */}
+          prose-h2:text-xl 
+          md:prose-h2:text-2xl 
+          prose-h2:pt-6 
+          prose-h2:pb-2 
+          prose-h2:border-b 
+          prose-h2:border-zinc-100 
+          dark:prose-h2:border-zinc-900
+
+          prose-a:text-amber-600 
+          dark:prose-a:text-amber-500 
+          prose-a:no-underline 
+          hover:prose-a:underline font-medium
+
+          prose-strong:text-zinc-900 
+          dark:prose-strong:text-zinc-100 
+          prose-strong:font-semibold
+
+          prose-code:text-amber-600 
+          dark:prose-code:text-amber-400 
+          prose-code:bg-zinc-100 
+          dark:prose-code:bg-zinc-900 
+          prose-code:px-1.5 
+          prose-code:py-0.5 
+          prose-code:rounded-md  
+          prose-code:before:content-none 
+          prose-code:after:content-none
+
+          prose-pre:bg-zinc-900 
+          dark:prose-pre:bg-zinc-900/60 
+          prose-pre:rounded-2xl 
+          prose-pre:max-w-full 
+          prose-pre:overflow-x-auto 
+
+          prose-img:rounded-2xl prose-img:border border-zinc-100 dark:border-zinc-900
+          
+          ">
+          
+          <Mdx>{post.content}</Mdx>
+        </div>
+
+      {/* 4. ARTICLES SIMILAIRES (Format Grid Premium) */}
       {similarPosts.length > 0 && (
-        <section className="mt-16 rounded-3xl border border-zinc-200 bg-zinc-50 p-8 dark:border-zinc-800 dark:bg-zinc-950/40">
-          <h2 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-white">
-            {t("post.similar_titles")}
-          </h2>
-          <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-            {t("post.similar_description")}
-          </p>
-          <div className="mt-6 grid gap-4 sm:grid-cols-2">
+        <section className="mt-20 pt-12 border-t border-zinc-100 dark:border-zinc-900">
+          <div className="flex items-center gap-2 mb-8">
+            <Sparkles className="w-4 h-4 text-amber-600 dark:text-amber-500" />
+            <h2 className="text-xs font-mono uppercase tracking-widest text-zinc-400 dark:text-zinc-500">
+              {t("post.similar_titles")}
+            </h2>
+          </div>
+          
+          <div className="grid gap-6 sm:grid-cols-2">
             {similarPosts.map((item) => (
               <Link
                 key={item.slug}
-                href={`/posts/${item.slug}`}
-                className="rounded-2xl border border-zinc-200 bg-white p-4 transition hover:-translate-y-0.5 hover:shadow-lg dark:border-zinc-800 dark:bg-zinc-900 group"
+                href={`/${locale}/posts/${item.slug}`}
+                className="group p-6 rounded-2xl border border-zinc-100 bg-zinc-50/40 hover:bg-white dark:border-zinc-900 dark:bg-zinc-900/20 dark:hover:bg-zinc-900/40 transition-all duration-300 flex flex-col justify-between h-full hover:shadow-sm"
               >
-                <div className="flex items-center justify-between gap-4">
-                  <span className="text-sm font-medium text-amber-600 dark:text-amber-500">{item.tag}</span>
-                  <span className="text-xs text-zinc-400 group-hover:text-amber-600 transition-colors">Lire →</span>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-mono uppercase tracking-wider text-zinc-400">#{item.tag}</span>
+                    <div className="w-7 h-7 rounded-lg bg-white dark:bg-zinc-900 border border-zinc-200/50 dark:border-zinc-800/50 flex items-center justify-center text-zinc-400 group-hover:text-amber-600 dark:group-hover:text-amber-500 group-hover:scale-105 transition-all">
+                      <ArrowUpRight className="w-3.5 h-3.5 transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+                    </div>
+                  </div>
+                  <h3 className="text-base font-normal tracking-tight text-zinc-900 dark:text-zinc-100 group-hover:text-amber-600 dark:group-hover:text-amber-500 transition-colors">
+                    {item.title}
+                  </h3>
                 </div>
-                <h3 className="mt-3 text-lg font-semibold text-zinc-900 dark:text-white">
-                  {item.title}
-                </h3>
-                <p className="mt-2 text-sm leading-6 text-zinc-600 dark:text-zinc-400 line-clamp-2">
-                  {item.description}
-                </p>
               </Link>
             ))}
           </div>
         </section>
       )}
 
-      {/* Footer de l'article */}
-      <footer className="mt-16 pt-8 border-t border-zinc-100 dark:border-zinc-800">
-        <div className="bg-zinc-50 dark:bg-zinc-900/50 p-8 rounded-2xl text-center space-y-4">
-          <h3 className="font-bold text-lg text-zinc-900 dark:text-zinc-100">{t("post.feedback_title")}</h3>
-          <p className="text-muted-foreground max-w-md mx-auto text-sm">
+      {/* 5. FOOTER FEEDBACK ÉPURÉ */}
+      <footer className="mt-20">
+        <div className="bg-zinc-50/50 dark:bg-zinc-900/20 border border-zinc-100 dark:border-zinc-900 p-8 rounded-2xl text-center space-y-3">
+          <h3 className="font-normal tracking-tight text-lg text-zinc-900 dark:text-zinc-100">
+            {t("post.feedback_title")}
+          </h3>
+          <p className="text-zinc-500 dark:text-zinc-400 max-w-sm mx-auto text-xs md:text-sm font-light leading-relaxed">
             {t("post.feedback_desc")}
           </p>
           <div className="flex justify-center gap-4 pt-2">
-             {/* Emplacement pour tes boutons ou icônes de réseaux sociaux */}
+             {/* Tes boutons de partage ou icônes réseaux sociaux ici */}
           </div>
         </div>
       </footer>
-    </article>
+    </main>
   )
 }

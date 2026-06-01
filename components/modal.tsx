@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { Moon, Sun, Menu, ArrowUpRight} from 'lucide-react';
 import { useI18n } from '@/locales/client';
 import LangueSwitch from "./LangueSwitch";
-import { useTheme } from "next-themes"
+import { useTheme } from "@teispace/next-themes"
 import { useState, useEffect } from 'react';
 import {
   Sheet,
