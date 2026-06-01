@@ -1,0 +1,144 @@
+---
+title: JavaScript Asynchrony Explained
+description: A practical guide to understanding JavaScript asynchrony with callbacks, Promises, async/await, and the event loop.
+tag: JavaScript
+publishedAt: "2026-06-01"
+published: true
+time: 7
+---
+
+# JavaScript Asynchrony Explained: `Callbacks`, `Promises`, and `Async/Await`
+
+JavaScript is single-threaded, but it still handles many tasks at the same time. This ability comes from asynchronous programming: the ability to start an operation now and finish it later without blocking the main thread.
+
+## Why JavaScript needs asynchrony
+
+In the browser and in Node.js, many operations are slow or unpredictable:
+
+- `network requests`
+- `file reading/writing`
+- `timers`
+- `user interactions`
+
+If JavaScript waited for each operation to finish, the UI would freeze and the app would be unresponsive. Asynchrony allows JavaScript to keep running other code while those operations complete.
+
+## `Callbacks`: the old-school async pattern
+
+A callback is a function passed as an argument and invoked later, when the asynchronous task completes.
+
+```javascript
+function fetchData(url, callback) {
+  setTimeout(() => {
+    const data = { url, status: 200 };
+    callback(data);
+  }, 1000);
+}
+
+fetchData('/api/data', (response) => {
+  console.log('Data received', response);
+});
+```
+
+`Callbacks` work, but they can create nested code and make logic harder to follow. This is called "callback hell".
+
+## `Promises`: cleaner asynchronous flows
+
+A `Promise` represents an operation that will finish in the future. It can be pending, fulfilled, or rejected.
+
+```javascript
+function fetchData(url) {
+  return new Promise((resolve, reject) => {
+    setTimeout(() => {
+      const success = true;
+      if (success) {
+        resolve({ url, status: 200 });
+      } else {
+        reject(new Error('Request failed'));
+      }
+    }, 1000);
+  });
+}
+
+fetchData('/api/data')
+  .then((response) => {
+    console.log('Data received', response);
+  })
+  .catch((error) => {
+    console.error('Error', error);
+  });
+```
+
+`Promises` are easier to chain and handle than callbacks. They also integrate with the JavaScript microtask queue, which means their reactions run in a predictable order.
+
+## `Async/Await`: syntax for readable async code
+
+`async` and `await` let you write asynchronous code that looks synchronous.
+
+```javascript
+async function loadData() {
+  try {
+    const response = await fetchData('/api/data');
+    console.log('Data received', response);
+  } catch (error) {
+    console.error('Error', error);
+  }
+}
+
+loadData();
+```
+
+Under the hood, `await` pauses the function until the Promise resolves, but it does not block the JavaScript thread.
+
+## `Event Loop`: how JavaScript handles async tasks
+
+Modern JavaScript distinguishes between microtasks and macrotasks.
+
+- Microtasks: `Promise.then`, `Promise.catch`, `queueMicrotask`
+- Macrotasks: `setTimeout`, `setInterval`, `I/O callbacks`
+
+The event loop always processes microtasks before moving on to the next macrotask.
+
+```javascript
+console.log('Start');
+
+setTimeout(() => {
+  console.log('Timeout');
+}, 0);
+
+Promise.resolve().then(() => {
+  console.log('Promise');
+});
+
+console.log('End');
+
+// Output: Start, End, Promise, Timeout
+```
+
+Understanding this ordering is essential for avoiding weird race conditions and ensuring code executes in the sequence you expect.
+
+## Best practices for JavaScript asynchrony
+
+- prefer `async` / `await` for readability
+- handle Promise rejections with `.catch()` or `try/catch`
+- avoid deeply nested callbacks
+- use `Promise.all()` to parallelize independent tasks
+- use `await` only inside `async` functions
+- keep long-running operations out of the main thread when possible
+
+## Practical example: fetching multiple resources
+
+```javascript
+async function loadAll() {
+  const urls = ['/api/user', '/api/posts', '/api/settings'];
+  const results = await Promise.all(urls.map(fetchData));
+  console.log(results);
+}
+
+loadAll();
+```
+
+This example shows how Promises can improve performance by executing multiple asynchronous tasks in parallel.
+
+## Conclusion
+
+Asynchrony is a core feature of JavaScript. It enables responsive applications by letting long operations happen in the background while the main thread continues to run. Mastering callbacks, Promises, and `async`/`await` is essential for writing modern, maintainable JavaScript.

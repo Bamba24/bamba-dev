@@ -12,7 +12,8 @@ export const revalidate = 3600; // Revalide les articles toutes les heures (3600
   description: z.string(),
   tag: z.string(),
   publishedAt: z.coerce.string(),
-  published: z.boolean().optional().default(false)
+  published: z.boolean().optional().default(false),
+  time: z.number()
 })
 
 type Post = z.infer<typeof postSchemas> & {

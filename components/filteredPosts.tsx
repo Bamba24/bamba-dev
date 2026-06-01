@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from 'react'; // 👈 Ajout de useState et useEffect
+import { useState, useEffect } from 'react'; //  Ajout de useState et useEffect
 import { PostCard } from '@/components/PostCard';
 import { Search } from "lucide-react";
 import { useQueryState } from "nuqs";
@@ -12,6 +12,7 @@ interface Post {
   tag: string;
   description: string;
   publishedAt: string;
+  time: number; // Temps de lecture en minutes
 }
 
 export default function FilteredPosts(props: { posts: Post[] }) {
@@ -32,10 +33,6 @@ export default function FilteredPosts(props: { posts: Post[] }) {
     return () => clearTimeout(handler);
   }, [localSearch, setQueryParam]);
 
-  // Synchroniser l'état local si l'URL change (ex: bouton retour du navigateur)
-  useEffect(() => {
-    setLocalSearch(queryParam);
-  }, [queryParam]);
 
   const tags = Array.from(new Set(props.posts.map((post) => post.tag).filter(Boolean)));
 
@@ -51,12 +48,14 @@ export default function FilteredPosts(props: { posts: Post[] }) {
 
   return (
     <div>
-      <section className="mb-16 space-y-8">
+      <section className="mb-16 space-y-8 ">
         {/* INPUT DE RECHERCHE */}
         <div className="relative group">
           <Search className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-5 text-zinc-400 group-focus-within:text-amber-600 transition-colors" />
+          <label className="sr-only" htmlFor='recherche'>Recherche</label>
           <input 
             type="text" 
+            id='recherche'
             placeholder={t("search.placeholder")}
             value={localSearch} // 👈 On lie l'input à l'état local fluide
             onChange={(e) => setLocalSearch(e.target.value)} // 👈 Changement instantané
@@ -67,6 +66,7 @@ export default function FilteredPosts(props: { posts: Post[] }) {
         {/* FILTRE PAR TAGS */}
         <div className="flex flex-wrap gap-3">
           <button 
+            type='button'
             onClick={() => setActiveTag(null)}
             className={`px-5 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all ${
               activeTag === null 
@@ -79,6 +79,8 @@ export default function FilteredPosts(props: { posts: Post[] }) {
 
           {tags.map((tag) => (
             <button 
+              type='button'
+              aria-pressed={activeTag === tag} 
               key={tag} 
               onClick={() => setActiveTag(tag === activeTag ? null : tag as string)}
               className={`px-5 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all ${

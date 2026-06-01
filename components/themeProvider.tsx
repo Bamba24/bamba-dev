@@ -1,25 +1,14 @@
 "use client"
 
 import * as React from "react"
-import { ThemeProvider as NextThemesProvider , type ThemeProviderProps} from "next-themes";
+import { ThemeProvider as NextThemesProvider, type ThemeProviderProps } from "@teispace/next-themes";
 
 export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
-  const [mounted, setMounted] = React.useState(false)
-
-  React.useEffect(() => {
-    setMounted(true)
-  }, [])
-
-  // Si on n'est pas monté, on rend juste les enfants pour l'hydratation initiale
-  if (!mounted) {
-    return <>{children}</>
-  }
-
+  // Plus besoin de bloquer le rendu avec un état 'mounted' ici !
+  // next-themes s'occupe de l'hydratation proprement grâce au suppressHydrationWarning du RootLayout.
+  
   return (
-    <NextThemesProvider 
-      {...props} 
-      enableColorScheme={false} // 👈 Ajoute ceci : désactive la gestion auto du color-scheme via script
-    >
+    <NextThemesProvider {...props}>
       {children}
     </NextThemesProvider>
   )
