@@ -93,7 +93,7 @@ export default async function TagPage({
   }
 
   return (
-    <main className="max-w-7xl mx-auto px-4 py-12 sm:py-16 sm:px-6 lg:py-24 lg:px-8 bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-50 transition-colors duration-300">
+    <main className="max-w-7xl mx-auto px-4 py-12 sm:py-16 sm:px-6 lg:py-24 lg:px-8 bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-50 transition-colors duration-300 border border-2">
       
       {/* 1. NAVIGATION RETOUR PREMIUM */}
       <div className="mb-10">
@@ -134,7 +134,7 @@ export default async function TagPage({
       </header>
 
       {/* STRUCTURE EN GRILLE ASYMÉTRIQUE */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-16 md:gap-24 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-16 md:gap-24 items-start ">
         
         {/* 3. LISTE DES ARTICLES FILTRÉS */}
         <section className="space-y-2">

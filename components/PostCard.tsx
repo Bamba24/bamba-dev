@@ -19,7 +19,7 @@ export function PostCard({ post }: { post: Post }) {
 
   return (
     <article 
-      className="group relative py-10 border-b border-zinc-100 dark:border-zinc-900/80 last:border-0 first:pt-0" 
+      className=" group relative py-10 border-b border-zinc-100 dark:border-zinc-900/80 last:border-0 first:pt-0" 
       aria-labelledby={`post-${post.slug}-title`} 
       aria-describedby={`post-${post.slug}-description`}
     >
