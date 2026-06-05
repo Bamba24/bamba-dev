@@ -9,31 +9,29 @@ interface Post {
   title: string;
   description: string;
   publishedAt: string;
-  time: number; // Temps de lecture en minutes
-  tag?: string; // Optionnel : pour afficher le petit badge de catégorie
+  time: number;
+  tag?: string;
 }
 
 export function PostCard({ post }: { post: Post }) {
   const t = useI18n();
-  const locale = useCurrentLocale(); // Récupère 'fr' ou 'en' dynamiquement
+  const locale = useCurrentLocale();
 
   return (
     <article 
-<<<<<<< HEAD
-      className=" group relative py-10 border-b border-zinc-100 dark:border-zinc-900/80 last:border-0 first:pt-0" 
-=======
-      className="group relative py-10 border-b border-zinc-100 dark:border-zinc-900/80 last:border-0 first:pt-0" 
->>>>>>> 2a4cc2aa6f621b86e4c70f9049b53e103cc8233c
+      className="w-full group relative py-10 border-b border-zinc-100 dark:border-zinc-900/80 last:border-0 first:pt-0" 
       aria-labelledby={`post-${post.slug}-title`} 
       aria-describedby={`post-${post.slug}-description`}
     >
-      {/* FIX : Route localisée avec /${locale} */}
-      <Link href={`/${locale}/posts/${post.slug}`} className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-6 items-start block">
+      <Link 
+        href={`/${locale}/posts/${post.slug}`} 
+        className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-6 items-start w-full min-w-0"
+      >
         
-        <div className="space-y-3.5">
-          {/* Meta : Date, Tag et Temps de lecture */}
+        <div className="space-y-3.5 min-w-0">
+          
+          {/* Meta */}
           <div className="flex flex-wrap items-center gap-3 text-[11px] font-mono tracking-wider text-zinc-400 dark:text-zinc-500 uppercase">
-            {/* FIX : Format de date adapté dynamiquement à la langue courante */}
             <time className="tabular-nums font-medium">
               {new Date(post.publishedAt).toLocaleDateString(locale, {
                 day: "2-digit",
@@ -54,23 +52,22 @@ export function PostCard({ post }: { post: Post }) {
             )}
           </div>
 
-          {/* Titre immersif */}
+          {/* Titre */}
           <h2 
             id={`post-${post.slug}-title`} 
-            className="text-xl sm:text-2xl md:text-3xl font-normal tracking-tight text-zinc-900 dark:text-zinc-50 group-hover:text-amber-600 dark:group-hover:text-amber-500 transition-colors duration-300 leading-tight"
+            className="text-xl sm:text-2xl md:text-3xl font-normal tracking-tight text-zinc-900 dark:text-zinc-50 group-hover:text-amber-600 dark:group-hover:text-amber-500 transition-colors duration-300 leading-tight break-words"
           >
-            {/* On affiche directement le titre nettoyé (pas besoin d'envelopper si tes variables dictionnaire ne font rien d'autre) */}
             {post.title}
           </h2>
 
-          {/* Description courte floutée/adoucie */}
-          <p className="text-zinc-500 dark:text-zinc-400 text-sm md:text-base leading-relaxed max-w-3xl line-clamp-2 font-light">
+          {/* Description */}
+          <p className="text-zinc-500 dark:text-zinc-400 text-sm md:text-base leading-relaxed max-w-3xl line-clamp-2 font-light break-words">
             {post.description}
           </p>
         </div>
 
-        {/* Flèche d'action à la "Studio" (S'anime au survol de la carte) */}
-        <div className="hidden md:flex items-center justify-center w-11 h-11 rounded-xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200/50 dark:border-zinc-800/50 text-zinc-400 dark:text-zinc-600 group-hover:text-white group-hover:bg-amber-600 dark:group-hover:bg-amber-500 group-hover:border-transparent transition-all duration-300 group-hover:scale-105 shadow-sm">
+        {/* Flèche d'action */}
+        <div className="hidden md:flex flex-shrink-0 items-center justify-center w-11 h-11 rounded-xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200/50 dark:border-zinc-800/50 text-zinc-400 dark:text-zinc-600 group-hover:text-white group-hover:bg-amber-600 dark:group-hover:bg-amber-500 group-hover:border-transparent transition-all duration-300 group-hover:scale-105 shadow-sm">
           <ArrowUpRight className="w-4 h-4 transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform duration-300" />
         </div>
 

@@ -93,11 +93,7 @@ export default async function TagPage({
   }
 
   return (
-<<<<<<< HEAD
-    <main className="max-w-7xl mx-auto px-4 py-12 sm:py-16 sm:px-6 lg:py-24 lg:px-8 bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-50 transition-colors duration-300 border border-2">
-=======
     <main className="max-w-7xl mx-auto px-4 py-12 sm:py-16 sm:px-6 lg:py-24 lg:px-8 bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-50 transition-colors duration-300">
->>>>>>> 2a4cc2aa6f621b86e4c70f9049b53e103cc8233c
       
       {/* 1. NAVIGATION RETOUR PREMIUM */}
       <div className="mb-10">
@@ -138,14 +134,10 @@ export default async function TagPage({
       </header>
 
       {/* STRUCTURE EN GRILLE ASYMÉTRIQUE */}
-<<<<<<< HEAD
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-16 md:gap-24 items-start ">
-=======
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-16 md:gap-24 items-start">
->>>>>>> 2a4cc2aa6f621b86e4c70f9049b53e103cc8233c
         
         {/* 3. LISTE DES ARTICLES FILTRÉS */}
-        <section className="space-y-2">
+        <section className="space-y-2 w-full max-w-3xl">
           <h2 className="text-xs font-mono uppercase tracking-widest text-zinc-400 dark:text-zinc-500 mb-8 flex items-center gap-2">
             <span>01 /</span> {filteredPosts.length} Publications trouvées
           </h2>
@@ -159,7 +151,7 @@ export default async function TagPage({
         {/* 4. SIDEBAR PREMIUM */}
         <aside className="space-y-10 lg:sticky lg:top-28">
           
-          {/* Navigation des étiquettes (Tags) */}
+          {/* Navigation des étiquettes */}
           <div className="rounded-2xl border border-zinc-100 dark:border-zinc-900 bg-zinc-50/50 dark:bg-zinc-900/20 p-6 space-y-4">
             <h3 className="text-xs font-mono uppercase tracking-widest text-zinc-400 dark:text-zinc-500">
               {t("sidebar.navigation")}
