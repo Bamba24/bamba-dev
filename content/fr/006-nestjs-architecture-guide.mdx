@@ -1,0 +1,136 @@
+---
+title: Guide complet de NestJS : Architecture Modulaire, Décorateurs et Injection de Dépendances
+description: Découvrez comment construire des applications Node.js entreprise robustes et évolutives grâce aux concepts clés de NestJS.
+tag: NestJS
+publishedAt: "2026-06-10"
+published: true
+time: 7
+---
+
+# Guide complet de NestJS : Architecture Modulaire, Décorateurs et Injection de Dépendances
+
+Lorsqu'il s'agit de créer des applications côté serveur complexes avec Node.js, **NestJS** s'est imposé comme le framework TypeScript de référence. Directement inspiré par la structure et la philosophie d'Angular, NestJS offre une architecture modulaire stricte, fortement typée et hautement maintenable.
+
+Dans cet article, nous allons passer en revue les pylônes de l'architecture NestJS : les **Modules**, les **Contrôleurs**, les **Services (Providers)** et l'**Injection de dépendances**.
+
+---
+
+## 1. L'Architecture Modulaire
+
+Dans NestJS, tout s'organise sous forme de **Modules**. Un module est une classe annotée avec le décorateur `@Module()` qui fournit les métadonnées nécessaires à Nest pour organiser la structure de l'application.
+
+```typescript
+// user.module.ts
+import { Module } from '@nestjs/common';
+import { UserController } from './user.controller';
+import { UserService } from './user.service';
+
+@Module({
+  controllers: [UserController],
+  providers: [UserService],
+  exports: [UserService], // Permet d'exporter le service pour d'autres modules
+})
+export class UserModule {}
+```
+
+Chaque fonctionnalité principale de votre application (Utilisateurs, Auth, Paiements) possède son propre module, le tout étant importé dans le module racine `AppModule`.
+
+---
+
+## 2. Les Contrôleurs (Controllers)
+
+Les contrôleurs sont responsables du traitement des requêtes HTTP entrantes et du renvoi des réponses au client. Ils utilisent des décorateurs élégants pour mapper les routes HTTP (`@Get()`, `@Post()`, `@Put()`, `@Delete()`).
+
+```typescript
+// user.controller.ts
+import { Controller, Get, Post, Body, Param, ParseIntPipe } from '@nestjs/common';
+import { UserService } from './user.service';
+import { CreateUserDto } from './dto/create-user.dto';
+
+@Controller('users')
+export class UserController {
+  constructor(private readonly userService: UserService) {}
+
+  @Get()
+  async findAll() {
+    return this.userService.findAll();
+  }
+
+  @Get(':id')
+  async findOne(@Param('id', ParseIntPipe) id: number) {
+    return this.userService.findOne(id);
+  }
+
+  @Post()
+  async create(@Body() createUserDto: CreateUserDto) {
+    return this.userService.create(createUserDto);
+  }
+}
+```
+
+<Note>
+Remarquez l'utilisation de `ParseIntPipe` : les Pipes dans NestJS permettent de valider et de transformer automatiquement les paramètres de requêtes avant qu'ils n'atteignent le contrôleur.
+</Note>
+
+---
+
+## 3. Les Services et l'Injection de Dépendances (DI)
+
+Les contrôleurs ne doivent gérer que les requêtes HTTP. Toute la logique métier, l'accès à la base de données et le calcul des règles applicatives doivent être encapsulés dans des **Services (Providers)** annotés avec `@Injectable()`.
+
+```typescript
+// user.service.ts
+import { Injectable, NotFoundException } from '@nestjs/common';
+
+export interface User {
+  id: number;
+  name: string;
+  email: string;
+}
+
+@Injectable()
+export class UserService {
+  private users: User[] = [];
+
+  async findAll(): Promise<User[]> {
+    return this.users;
+  }
+
+  async findOne(id: number): Promise<User> {
+    const user = this.users.find((u) => u.id === id);
+    if (!user) {
+      throw new NotFoundException(`Utilisateur avec l'ID ${id} non trouvé`);
+    }
+    return user;
+  }
+
+  async create(userDto: Omit<User, 'id'>): Promise<User> {
+    const newUser = { id: Date.now(), ...userDto };
+    this.users.push(newUser);
+    return newUser;
+  }
+}
+```
+
+NestJS gère automatiquement le cycle de vie et l'instanciation du `UserService` grâce à son conteneur d'**Injection de Dépendances (IoC Container)**.
+
+---
+
+## 4. Comparatif de la chaîne d'exécution NestJS
+
+Voici le parcours d'une requête HTTP dans NestJS :
+
+| Étape | Composant NestJS | Rôle |
+| :--- | :--- | :--- |
+| 1 | **Middlewares** | Intercepte les requêtes avant le routeur (ex: logger, CORS). |
+| 2 | **Guards** | Gère l'authentification et l'autorisation (ex: JWT Guard). |
+| 3 | **Interceptors** | Transforme ou décore les requêtes/réponses (ex: caching, formatting). |
+| 4 | **Pipes** | Valide et transforme les DTOs/paramètres. |
+| 5 | **Controller** | Exécute la méthode de route et fait appel au Service. |
+| 6 | **Exception Filters** | Attrape et formate les erreurs renvoyées au client. |
+
+---
+
+## Conclusion
+
+NestJS apporte aux projets Node.js la rigueur et la structure d'entreprise qui manquent souvent aux configurations Express minimalistes. Combiné avec TypeScript, Prisma ou TypeORM, vous obtenez une pile backend robuste et facile à faire évoluer en équipe.

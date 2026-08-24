@@ -1,0 +1,70 @@
+---
+title: VPS, Serveurs Mutualisés, Dédiés et Dokploy : Comment Héberger ses Applications Web
+description: Guide pratique de l'hébergement web : du serveur mutualisé classique au VPS auto-hébergé avec Dokploy et Docker.
+tag: DevOps
+publishedAt: "2026-06-25"
+published: true
+time: 7
+---
+
+# VPS, Serveurs Mutualisés, Dédiés et Dokploy : Comment Héberger ses Applications Web
+
+Lorsqu'un projet web quitte le stade du développement local, choisir le bon mode d'hébergement devient une étape cruciale. Entre les **serveurs mutualisés**, les **VPS (Virtual Private Servers)**, les **serveurs dédiés** et les solutions d'orchestration modernes comme **Dokploy**, l'éventail des choix est vaste.
+
+Dans cet article, nous allons comparer les types d'hébergement et voir comment créer une alternative PaaS auto-hébergée économique avec Dokploy.
+
+---
+
+## 1. Les différents types de serveurs d'hébergement
+
+### Serveur Mutualisé (Shared Hosting)
+Plusieurs sites web se partagent les ressources (CPU, RAM) d'un même serveur physique.
+- **Utilisation classique** : Sites vitrines WordPress, petits blogs PHP.
+- **Limites** : Pas d'accès root (SSH), pas de support Docker/Node.js avancé, performances dépendantes des voisins.
+
+### VPS (Virtual Private Server)
+Un serveur virtuel dédié découpé sur une machine physique grâce à la virtualisation (KVM).
+- **Utilisation** : Applications Node.js, Python, bases de données, conteneurs Docker.
+- **Avantages** : Accès root SSH complet, ressources garanties, coûts mensuels fixes très bas (ex: 3€ à 10€/mois).
+
+### Serveur Dédié (Bare Metal)
+Une machine physique entière réservée exclusivement à votre entreprise.
+- **Utilisation** : Infrastructures à fort trafic, gros clusters de bases de données.
+- **Avantages** : Performances maximales, aucune couche de virtualisation intermédiaire.
+
+---
+
+## 2. Tableau comparatif des serveurs
+
+| Type | Contrôle SSH | Performance | Isolation | Coût relatif |
+| :--- | :--- | :--- | :--- | :--- |
+| **Mutualisé** | ❌ Non | Faible à Moyenne | Partagée | € |
+| **VPS** | ✅ Oui (Root) | Élevée | Virtuelle | €€ |
+| **Dédié** | ✅ Oui (Root) | Maximale | Physique | €€€ |
+
+---
+
+## 3. Qu'est-ce que Dokploy ?
+
+**Dokploy** est un PaaS open-source auto-hébergé (alternative gratuite à Vercel ou Heroku). Installé sur un simple **VPS Linux** (Debian/Ubuntu), Dokploy vous offre une interface web moderne pour déployer vos applications web, bases de données et services Docker en quelques clics.
+
+<Note>
+Avec Dokploy sur un VPS à 5€/mois (Hetzner, OVH, Netcup), vous pouvez héberger des dizaines d'applications Next.js, Node.js, Postgres et Redis avec SSL automatique via Traefik.
+</Note>
+
+### Fonctionnalités de Dokploy :
+- **Déploiement Git** : Déploiement automatique dès un `git push` sur GitHub ou GitLab.
+- **Bases de données managées** : Instanciation en 1 clic de PostgreSQL, MySQL, MongoDB, Redis.
+- **SSL Automatique** : Génération et renouvellement des certificats Let's Encrypt.
+- **Monitoring & Logs** : Visualisation en direct des logs de conteneurs et de l'utilisation mémoire/CPU.
+
+```bash
+# Commande d'installation de Dokploy sur un VPS Ubuntu vierge
+curl -sSL https://dokploy.com/install.sh | sh
+```
+
+---
+
+## Conclusion
+
+Pour les développeurs et startups modernes, la combinaison d'un **VPS performant** et d'un outil d'orchestration comme **Dokploy** offre le meilleur des deux mondes : la simplicité d'utilisation de Vercel sans les limites de coûts et avec une maîtrise totale de vos données.

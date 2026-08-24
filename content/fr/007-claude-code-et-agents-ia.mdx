@@ -1,0 +1,66 @@
+---
+title: Claude Code et la Révolution des Agents IA : CLI, MCP et Workflows de Développement
+description: Exploration de Claude Code, du Model Context Protocol (MCP) et de la façon d'accélérer son workflow avec des agents IA autonomes.
+tag: IA
+publishedAt: "2026-06-15"
+published: true
+time: 6
+---
+
+# Claude Code et la Révolution des Agents IA : CLI, MCP et Workflows de Développement
+
+L'intégration de l'Intelligence Artificielle dans le quotidien des développeurs passe à la vitesse supérieure. Après la génération de code ponctuelle (autocomplétion) et les assistants de chat, nous sommes entrés dans l'ère des **Agents IA Autonomes**.
+
+Parmi les innovations les plus marquantes figure **Claude Code**, un outil en ligne de commande (CLI) développé par Anthropic, et le standard émergent **MCP (Model Context Protocol)**.
+
+---
+
+## 1. Qu'est-ce que Claude Code ?
+
+**Claude Code** est un assistant de codage agence directement intégré dans le terminal de commande. Contrairement aux simples extensions d'éditeurs, Claude Code a une compréhension globale de votre projet.
+
+### Fonctionnalités clés :
+- **Inspection du projet** : Analyse l'arborescence, lit les fichiers de configuration et comprend les dépendances.
+- **Exécution de commandes** : Lance vos tests automatisés (`npm test`), les vérifications de typage (`tsc`) et les linters.
+- **Edition intelligente** : Modifie plusieurs fichiers de façon synchrone en respectant les conventions de votre codebase.
+- **Auto-Correction** : Si un test ou une compilation échoue après sa modification, l'agent lit la trace d'erreur et retente une correction ciblée.
+
+```bash
+# Exemple d'interaction avec Claude Code dans le terminal
+$ claude "Ajoute la validation Zod sur le formulaire d'inscription et écris les tests unitaires"
+```
+
+---
+
+## 2. Le Standard MCP (Model Context Protocol)
+
+Le **Model Context Protocol (MCP)** est un protocole ouvert permettant d'interconnecter les agents IA avec des sources de données externes et des outils d'infrastructure.
+
+<Note>
+Pensez au MCP comme à une API unifiée pour les modèles de langage (LLMs), leur permettant d'interagir avec GitHub, Postgres, Slack, AWS, ou des outils de recherche web sans code sur-mesure.
+</Note>
+
+### Architecture d'un système MCP :
+
+| Composant | Rôle dans l'écosystème |
+| :--- | :--- |
+| **Hôte (Client MCP)** | L'environnement de l'agent (ex: Claude Code, Antigravity, Cursor). |
+| **Serveurs MCP** | Micro-services exposant des outils et ressources (ex: serveur MCP Postgres, serveur MCP Git). |
+| **Ressources & Outils** | Les actions réelles (ex: exécuter une requête SQL, lire la doc API, créer une PR). |
+
+---
+
+## 3. Workflow de développement augmenté par les Agents
+
+Avec un agent autonome comme Claude Code, le workflow de développement évolue vers un rôle de **Pair-Programming** et de revue de code :
+
+1. **Définition de l'objectif** : Le développeur exprime la fonctionnalité ou le bugfix attendu.
+2. **Phase de recherche** : L'agent parcourt le code source pour identifier les composants impactés.
+3. **Planification & Exécution** : L'agent effectue la modification pas-à-pas et exécute les commandes de validation localement.
+4. **Vérification humaine** : Le développeur inspecte le diff, teste visuellement et valide le commit.
+
+---
+
+## Conclusion
+
+L'utilisation combinée d'agents CLI comme **Claude Code** et de protocoles extensibles comme le **MCP** démultiplie la productivité des développeurs. L'IA ne remplace pas l'ingéniosité humaine, mais elle prend en charge les tâches répétitives, le débogage de bas niveau et le câblage de code boilerplate.

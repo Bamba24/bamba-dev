@@ -1,0 +1,83 @@
+---
+title: Complete NestJS Guide: Modular Architecture, Decorators, and Dependency Injection
+description: Discover how to build robust and scalable enterprise Node.js applications using key NestJS concepts.
+tag: NestJS
+publishedAt: "2026-06-10"
+published: true
+time: 7
+---
+
+# Complete NestJS Guide: Modular Architecture, Decorators, and Dependency Injection
+
+When it comes to building complex server-side applications with Node.js, **NestJS** has established itself as the go-to TypeScript framework. Heavily inspired by Angular's architecture, NestJS provides a strict, strongly typed, and highly maintainable modular structure.
+
+In this article, we will explore the core pillars of NestJS: **Modules**, **Controllers**, **Services (Providers)**, and **Dependency Injection**.
+
+---
+
+## 1. Modular Architecture
+
+In NestJS, everything is organized into **Modules**. A module is a class decorated with `@Module()` that provides metadata used by Nest to organize the application structure.
+
+```typescript
+// user.module.ts
+import { Module } from '@nestjs/common';
+import { UserController } from './user.controller';
+import { UserService } from './user.service';
+
+@Module({
+  controllers: [UserController],
+  providers: [UserService],
+  exports: [UserService],
+})
+export class UserModule {}
+```
+
+---
+
+## 2. Controllers
+
+Controllers are responsible for handling incoming HTTP requests and returning responses to the client. They use intuitive decorators like `@Get()`, `@Post()`, `@Put()`, and `@Delete()`.
+
+```typescript
+// user.controller.ts
+import { Controller, Get, Post, Body, Param, ParseIntPipe } from '@nestjs/common';
+import { UserService } from './user.service';
+
+@Controller('users')
+export class UserController {
+  constructor(private readonly userService: UserService) {}
+
+  @Get()
+  async findAll() {
+    return this.userService.findAll();
+  }
+
+  @Get(':id')
+  async findOne(@Param('id', ParseIntPipe) id: number) {
+    return this.userService.findOne(id);
+  }
+}
+```
+
+---
+
+## 3. Services and Dependency Injection
+
+Business logic and database interactions should be encapsulated inside **Injectable Services**:
+
+```typescript
+// user.service.ts
+import { Injectable, NotFoundException } from '@nestjs/common';
+
+@Injectable()
+export class UserService {
+  private users = [];
+
+  async findAll() {
+    return this.users;
+  }
+}
+```
+
+NestJS automatically manages the lifecycle and instantiation of services via its **Inversion of Control (IoC) Container**.
