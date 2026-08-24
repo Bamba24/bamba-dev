@@ -92,8 +92,15 @@ export const getPostsPreview = cache(async (
         return null;
       }
 
-      const preview = { ...post };
-      delete (preview as { content?: string }).content;
+      const preview: PostPreview = {
+        title: post.title,
+        description: post.description,
+        tag: post.tag,
+        publishedAt: post.publishedAt,
+        published: post.published,
+        time: post.time,
+        slug: post.slug,
+      };
 
       return preview;
     })

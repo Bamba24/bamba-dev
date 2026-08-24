@@ -7,6 +7,8 @@ import "./globals.css";
 const geistSans = Nunito({
   variable: "--font-nunito-sans",
   subsets: ["latin"],
+  display: "swap",
+  fallback: ["system-ui", "arial", "sans-serif"],
 });
 
 
