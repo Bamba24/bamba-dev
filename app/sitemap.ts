@@ -1,5 +1,5 @@
 import { MetadataRoute } from 'next';
-import { getPosts } from '@/lib/posts'; // Ta fonction pour récupérer tous les articles
+import { getPostsPreview, PostPreview } from '@/lib/posts'; // Ta fonction pour récupérer tous les articles
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://bambadev.com';
@@ -8,7 +8,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // 1. Pages statiques de ton site
   const staticPages = [
     '',
-    '/categories',
+    '/posts',
     '/a-propos',
   ];
 
@@ -30,9 +30,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   try {
     // On récupère les articles pour chaque langue (ou globalement selon ta structure lib/posts)
     for (const locale of locales) {
-      const posts = await getPosts(locale);
+      const posts = await getPostsPreview(locale);
       
-      posts.forEach((post) => {
+      posts.forEach((post: PostPreview) => {
         sitemapEntries.push({
           url: `${baseUrl}/${locale}/posts/${post.slug}`,
           lastModified: new Date(post.publishedAt),

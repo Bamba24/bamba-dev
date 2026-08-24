@@ -8,13 +8,15 @@ export default function ThemeToggle() {
 
   return (
     <button
+      type="button"
       onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
       className="p-2.5 text-zinc-500 hover:text-amber-600 transition-colors"
+      aria-label="Basculer le thème"
     >
       {theme === "dark" ? (
-        <Sun size={19} strokeWidth={1.5} aria-label="Basculer thème" />
+        <Sun size={19} strokeWidth={1.5} />
       ) : (
-        <Moon size={19} strokeWidth={1.5} aria-label="Basculer thème" />
+        <Moon size={19} strokeWidth={1.5} />
       )}
     </button>
   );
