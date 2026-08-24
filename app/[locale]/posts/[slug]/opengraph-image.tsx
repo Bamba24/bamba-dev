@@ -1,5 +1,5 @@
 import { ImageResponse } from 'next/og';
-import { getPosts } from '@/lib/posts';
+import { getPostsPreview } from '@/lib/posts';
 import fs from 'fs';
 import path from 'path';
 
@@ -18,7 +18,7 @@ export async function generateStaticParams() {
 
   for (const locale of locales) {
     try {
-      const posts = await getPosts(locale);
+      const posts = await getPostsPreview(locale);
       posts.forEach((post) => {
         params.push({ locale, slug: post.slug });
       });
@@ -50,7 +50,8 @@ export default async function Image({ params }: Props) {
     );
   } catch (error) {
     throw new Error(
-      "Impossible de lire l'image 'og-background.png' dans le dossier public/. Vérifie son extension et son emplacement."
+      "Impossible de lire l'image 'og-background.png' dans le dossier public/. Vérifie son extension et son emplacement.",
+      { cause: error }
     );
   }
   

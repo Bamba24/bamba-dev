@@ -37,6 +37,12 @@ export default function Header() {
 
   return (
     <header className="sticky top-0 z-50 w-full bg-white/70 dark:bg-zinc-950/70 backdrop-blur-md border-b border-zinc-100/80 dark:border-zinc-900/60 transition-colors duration-300">
+      <a 
+        href="#main-content" 
+        className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2 focus:bg-amber-600 focus:text-white focus:rounded-xl focus:shadow-lg focus:outline-none"
+      >
+        Passer au contenu principal
+      </a>
       <div className="max-w-7xl mx-auto flex h-20 items-center justify-between px-4 sm:px-6 lg:px-8">
         
         {/* LOGO */}
@@ -89,8 +95,11 @@ export default function Header() {
           {/* MENU MOBILE */}
           <div className="md:hidden">
             <Sheet open={isOpen} onOpenChange={setIsOpen}>
-              <SheetTrigger className="p-2.5 rounded-xl border border-zinc-200/60 dark:border-zinc-800/60 text-zinc-900 dark:text-white bg-zinc-50/50 dark:bg-zinc-900/20 active:scale-95 transition-all outline-none">
-                <Menu size={20} strokeWidth={2} aria-label="Ouvrir le menu" />
+              <SheetTrigger 
+                aria-label="Ouvrir le menu de navigation"
+                className="p-2.5 rounded-xl border border-zinc-200/60 dark:border-zinc-800/60 text-zinc-900 dark:text-white bg-zinc-50/50 dark:bg-zinc-900/20 active:scale-95 transition-all outline-none"
+              >
+                <Menu size={20} strokeWidth={2} />
               </SheetTrigger>
               <SheetContent side="right" className="w-full sm:max-w-sm bg-white dark:bg-zinc-950 border-zinc-100 dark:border-zinc-900 p-8 flex flex-col justify-between">
                 <div>

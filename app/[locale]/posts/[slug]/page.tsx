@@ -1,6 +1,6 @@
 import React from 'react'
 import { notFound } from 'next/navigation';
-import { getPostBySlug, getPosts } from '@/lib/posts';
+import { getPostBySlug, getPostsPreview} from '@/lib/posts';
 import Mdx from '@/features/mdx/Mdx';
 import { Calendar, Clock, ArrowLeft, ArrowUpRight, Sparkles } from "lucide-react";
 import Link from 'next/link';
@@ -17,7 +17,7 @@ export async function generateStaticParams() {
 
   for (const locale of locales) {
     try {
-      const posts = await getPosts(locale);
+      const posts = await getPostsPreview(locale);
       if (posts && Array.isArray(posts)) {
         posts.forEach(post => {
           params.push({ locale, slug: post.slug });
@@ -90,13 +90,32 @@ export default async function Post({ params }: { params: Promise<{ slug: string,
     return notFound();
   }
 
-  const allPosts = await getPosts(locale);
+  const allPosts = await getPostsPreview(locale);
   const similarPosts = allPosts
     ? allPosts.filter((item) => item.tag === post.tag && item.slug !== slug).slice(0, 2)
     : [];
 
+  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://bambadev.com';
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'BlogPosting',
+    headline: post.title,
+    description: post.description,
+    datePublished: post.publishedAt,
+    author: {
+      '@type': 'Person',
+      name: 'BambaDev',
+    },
+    url: `${baseUrl}/${locale}/posts/${slug}`,
+    keywords: post.tag,
+  };
+
   return (
-    <main className="w-full max-w-4xl mx-auto px-4 py-12 sm:py-16 sm:px-6 lg:py-24 transition-colors duration-300 min-w-0 overflow-hidden"> 
+    <main id="main-content" className="w-full max-w-4xl mx-auto px-4 py-12 sm:py-16 sm:px-6 lg:py-24 transition-colors duration-300 min-w-0 overflow-hidden"> 
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       
       {/* 1. RETOUR À L'ACCUEIL */}
       <div className="mb-12">
@@ -140,9 +159,9 @@ export default async function Post({ params }: { params: Promise<{ slug: string,
         </div>
       </header>
 
-      {/* 3. CORPS DE L'ARTICLE */}
-      <div className="w-full min-w-0 block">
-        <div className="prose prose-zinc dark:prose-invert max-w-none w-full break-words
+      {/* 3. CORPS DE L'ARTICLE DEPUIS MDX */}
+      <div className="w-full min-w-0 grid grid-cols-1">
+        <div className="prose prose-zinc dark:prose-invert max-w-none w-full min-w-0 overflow-hidden break-words
           prose-p:text-zinc-600 dark:prose-p:text-zinc-300 prose-p:leading-relaxed prose-p:font-light text-sm md:text-base
           
           prose-headings:text-zinc-900 
@@ -167,12 +186,35 @@ export default async function Post({ params }: { params: Promise<{ slug: string,
           dark:prose-strong:text-zinc-100 
           prose-strong:font-semibold
 
+          {/* BLOC DE CODE (PRE) */}
           prose-pre:bg-zinc-900 
           dark:prose-pre:bg-zinc-900/60 
           prose-pre:rounded-2xl 
           prose-pre:w-full
-          prose-pre:table-fixed
-          prose-pre:overflow-x-auto 
+          prose-pre:overflow-x-auto
+          prose-pre:block
+
+          {/* CODE EN LIGNE CORRIGÉ (INLINE CODE) */}
+          prose-code:before:content-none 
+          prose-code:after:content-none
+          prose-code:font-mono 
+          prose-code:font-medium
+          prose-code:text-[inherit]
+          prose-code:px-1.5 
+          prose-code:py-0.5 
+          prose-code:rounded-lg
+          
+          {/* Style Thème Clair */}
+          prose-code:text-amber-700 
+          prose-code:bg-zinc-50
+          prose-code:border 
+          prose-code:border-zinc-200/80
+          
+          {/* Style Thème Sombre */}
+          dark:prose-code:text-amber-400
+          dark:prose-code:bg-zinc-900
+          dark:prose-code:border 
+          dark:prose-code:border-zinc-800/80
 
           prose-img:rounded-2xl prose-img:border border-zinc-100 dark:border-zinc-900
           ">
@@ -214,21 +256,6 @@ export default async function Post({ params }: { params: Promise<{ slug: string,
           </div>
         </section>
       )}
-
-      {/* 5. FOOTER FEEDBACK */}
-      <footer className="mt-20">
-        <div className="bg-zinc-50/50 dark:bg-zinc-900/20 border border-zinc-100 dark:border-zinc-900 p-6 sm:p-8 rounded-2xl text-center space-y-3">
-          <h3 className="font-normal tracking-tight text-lg text-zinc-900 dark:text-zinc-100">
-            {t("post.feedback_title")}
-          </h3>
-          <p className="text-zinc-500 dark:text-zinc-400 max-w-sm mx-auto text-xs md:text-sm font-light leading-relaxed">
-            {t("post.feedback_desc")}
-          </p>
-          <div className="flex justify-center gap-4 pt-2">
-             {/* Partage */}
-          </div>
-        </div>
-      </footer>
     </main>
   )
 }
