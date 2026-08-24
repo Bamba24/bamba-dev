@@ -1,0 +1,301 @@
+D'après tout ce que tu m'as montré, ton code est déjà assez propre. Je ne vois pas de problème majeur d'architecture. Les optimisations que je ferais concernent surtout **les lectures de fichiers**, **la mémoire**, et **les builds Next.js**.
+
+# 1. Ne pas charger `content` dans la liste des articles
+
+Actuellement :
+
+```ts
+posts.push({
+  ...safeParse.data,
+  slug: filename.replace(/^\d+-/, "").replace(".mdx", ""),
+  content: frontMatter.content
+});
+```
+
+Pour `/posts`, tu n'utilises jamais :
+
+```ts
+post.content
+```
+
+Tu pourrais avoir deux types :
+
+```ts
+type PostPreview = {
+  slug: string;
+  title: string;
+  description: string;
+  tag: string;
+  publishedAt: string;
+  time: number;
+};
+
+type Post = PostPreview & {
+  content: string;
+};
+```
+
+Et deux fonctions :
+
+```ts
+getPostsPreview(locale)
+getPostBySlug(slug, locale)
+```
+
+Résultat :
+
+* moins de mémoire
+* moins de données envoyées aux composants
+* génération plus rapide
+
+---
+
+# 2. Ne pas relire tous les articles pour trouver un slug
+
+Actuellement :
+
+```ts
+export const getPostBySlug = cache(async (slug, locale) => {
+  const posts = await getPosts(locale);
+  return posts.find(post => post.slug === slug);
+});
+```
+
+Pour trouver un article :
+
+1. tu lis tous les fichiers ;
+2. tu parses tous les frontmatters ;
+3. tu charges tous les contenus ;
+4. tu cherches un seul slug.
+
+C'est coûteux.
+
+Je préférerais :
+
+```ts
+export const getPostBySlug = cache(async (slug, locale) => {
+  const filePath = ...
+  const content = await fs.readFile(filePath, "utf8");
+  ...
+});
+```
+
+Ainsi :
+
+```txt
+1 article demandé
+→ 1 fichier lu
+```
+
+au lieu de :
+
+```txt
+1 article demandé
+→ 20 fichiers lus
+```
+
+---
+
+# 3. Remplacer `for await` par `Promise.all`
+
+Actuellement :
+
+```ts
+for await (const filename of filenames) {
+  ...
+}
+```
+
+Les fichiers sont lus séquentiellement.
+
+Tu peux paralléliser :
+
+```ts
+const posts = await Promise.all(
+  filenames.map(async (filename) => {
+    ...
+  })
+);
+```
+
+Si tu as 20 articles :
+
+```txt
+Avant :
+20 lectures successives
+
+Après :
+20 lectures en parallèle
+```
+
+Souvent beaucoup plus rapide.
+
+---
+
+# 4. Mémoriser le dossier des articles
+
+Tu fais souvent :
+
+```ts
+path.join(process.cwd(), "content", locale)
+```
+
+Tu peux extraire :
+
+```ts
+const getContentDir = (locale: string) =>
+  path.join(process.cwd(), "content", locale);
+```
+
+Petit gain de lisibilité.
+
+---
+
+# 5. Éviter les recalculs inutiles dans `FilteredPosts`
+
+Actuellement :
+
+```ts
+const tags = Array.from(
+  new Set(props.posts.map(post => post.tag).filter(Boolean))
+);
+```
+
+À chaque rendu.
+
+Tu peux utiliser :
+
+```ts
+const tags = useMemo(() => {
+  return Array.from(
+    new Set(props.posts.map(post => post.tag).filter(Boolean))
+  );
+}, [props.posts]);
+```
+
+Pas indispensable, mais propre.
+
+---
+
+# 6. Mémoriser le filtrage
+
+Actuellement :
+
+```ts
+const filteredPosts = props.posts.filter(...)
+```
+
+À chaque frappe.
+
+Tu peux faire :
+
+```ts
+const filteredPosts = useMemo(() => {
+  return props.posts.filter(...)
+}, [props.posts, queryParam, activeTag]);
+```
+
+Surtout utile quand tu auras beaucoup d'articles.
+
+---
+
+# 7. Éviter la double récupération des posts
+
+Dans la page article :
+
+```ts
+const post = await getPostBySlug(slug, locale);
+const allPosts = await getPosts(locale);
+```
+
+Puis :
+
+```ts
+const similarPosts = allPosts.filter(...)
+```
+
+Tu lis potentiellement les mêmes données deux fois.
+
+Une fonction dédiée serait plus efficace :
+
+```ts
+getRelatedPosts(tag, currentSlug, locale)
+```
+
+---
+
+# 8. Vérifier `rehypePrettyCode`
+
+C'est l'optimisation la plus importante selon moi.
+
+Tu utilises :
+
+```ts
+rehypePrettyCode
+```
+
+Je mesurerais son coût :
+
+```ts
+console.time("mdx");
+<Mdx>{post.content}</Mdx>
+console.timeEnd("mdx");
+```
+
+Si le temps explose :
+
+* réduire les gros blocs de code ;
+* limiter les langages utilisés ;
+* envisager une compilation au build plutôt qu'à la requête.
+
+---
+
+# 9. `generateMetadata`
+
+Tu fais :
+
+```ts
+const post = await getPostBySlug(slug, locale);
+```
+
+puis la page fait encore :
+
+```ts
+const post = await getPostBySlug(slug, locale);
+```
+
+Même avec `cache()`, je vérifierais que ce n'est pas une source de travail redondant.
+
+---
+
+# 10. Mesurer avant d'optimiser
+
+Avant toute refactorisation :
+
+```ts
+console.time("getPosts");
+const posts = await getPosts(locale);
+console.timeEnd("getPosts");
+```
+
+et
+
+```ts
+console.time("mdx");
+...
+console.timeEnd("mdx");
+```
+
+Les métriques te diront où est le vrai goulot d'étranglement.
+
+---
+
+Par ordre de priorité, je ferais :
+
+1. **Séparer `getPostsPreview()` et `getPostBySlug()`**.
+2. **Tester sans `rehypePrettyCode`**.
+3. **Remplacer le `for await` par `Promise.all`**.
+4. **Mesurer les temps avec `console.time()`**.
+5. **Ajouter `useMemo` dans `FilteredPosts`**.
+
+Les trois premiers auront probablement le plus d'impact sur les performances réelles.

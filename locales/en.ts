@@ -23,6 +23,7 @@ export default {
   
   // Footer
   'footer.made_with': 'Made with Next.js',
+  'footer.description': 'A space dedicated to modern web development and clean interface design.',
   
   // Post Related
   'post.read_time': 'min read',
