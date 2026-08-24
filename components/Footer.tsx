@@ -10,7 +10,7 @@ export default function Footer() {
   const locale = useCurrentLocale();
 
   return (
-    <footer className="max-w-7xl mx-auto mt-24 px-4 py-16 sm:px-6 lg:px-8 border-t border-zinc-100 dark:border-zinc-900 space-y-12">
+    <footer className="max-w-2xl mx-auto mt-20 px-4 py-12 border-t border-zinc-100 dark:border-zinc-900 space-y-10">
       
       {/* Grille principale des liens */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-10 items-start">

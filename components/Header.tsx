@@ -43,7 +43,7 @@ export default function Header() {
       >
         Passer au contenu principal
       </a>
-      <div className="max-w-7xl mx-auto flex h-20 items-center justify-between px-4 sm:px-6 lg:px-8">
+      <div className="max-w-2xl mx-auto flex h-16 items-center justify-between px-4 sm:px-6">
         
         {/* LOGO */}
         <div className="flex items-center">
