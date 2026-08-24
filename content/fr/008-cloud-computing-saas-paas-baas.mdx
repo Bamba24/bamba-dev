@@ -1,0 +1,79 @@
+---
+title: Comprendre le Cloud Computing : IaaS, PaaS, SaaS, BaaS et l'Écosystème Moderne
+description: Démystifiez les différents modèles de services Cloud pour choisir la meilleure architecture d'hébergement pour vos projets web.
+tag: Cloud
+publishedAt: "2026-06-20"
+published: true
+time: 6
+---
+
+# Comprendre le Cloud Computing : IaaS, PaaS, SaaS, BaaS et l'Écosystème Moderne
+
+Le **Cloud Computing** a transformé la façon dont nous déployons, gérons et faisons évoluer les applications web. Néanmoins, entre les acronymes **IaaS**, **PaaS**, **SaaS** et **BaaS**, il est parfois difficile d'identifier la meilleure solution pour son projet.
+
+Dans cet article, nous allons passer en revue chaque niveau d'abstraction du Cloud et comparer les plateformes modernes.
+
+---
+
+## 1. La Pyramide des Services Cloud
+
+Le Cloud Computing se découpe en différents niveaux d'abstraction et de délégation de la gestion d'infrastructure :
+
+```txt
+┌─────────────────────────────────────────────────────────┐
+│                       SaaS                              │
+│       (Logiciel clé en main : Gmail, Notion, Stripe)    │
+├─────────────────────────────────────────────────────────┤
+│                       BaaS                              │
+│       (Backend Managed : Supabase, Firebase, Convex)    │
+├─────────────────────────────────────────────────────────┤
+│                       PaaS                              │
+│       (Plateforme de Déploiement : Vercel, Render)      │
+├─────────────────────────────────────────────────────────┤
+│                       IaaS                              │
+│       (Infrastructure brute : AWS EC2, DigitalOcean)    │
+└─────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 2. Comparatif des Modèles de Services
+
+### IaaS (Infrastructure as a Service)
+- **Le principe** : Vous louez des serveurs virtuels bruts, du stockage et du réseau. Vous devez tout installer (OS, Docker, Sécurité, SSL).
+- **Fournisseurs célèbres** : AWS (EC2), Google Cloud (Compute Engine), Hetzner, DigitalOcean.
+- **Avantages** : Contrôle total, coûts bruts très bas à grande échelle.
+
+### PaaS (Platform as a Service)
+- **Le principe** : Vous fournissez votre code ou votre image Docker, la plateforme gère la compilation, le HTTPS, les sous-domaines et le déploiement continu.
+- **Fournisseurs célèbres** : Vercel, Railway, Render, Fly.io.
+- **Avantages** : Déploiement en 1 clic via `git push`, zéro maintenance de serveur.
+
+### BaaS (Backend as a Service)
+- **Le principe** : Une solution backend clé en main fournissant la base de données, l’authentification, le stockage de fichiers et les fonctions Serverless.
+- **Fournisseurs célèbres** : Supabase, Firebase, Convex, Appwrite.
+- **Avantages** : Développement frontend accéléré sans écrire de backend complet.
+
+### SaaS (Software as a Service)
+- **Le principe** : Application logicielle prête à l'emploi accessible via un navigateur web ou une API.
+- **Exemples** : Resend (emailing), Stripe (paiements), Auth0 (authentification).
+
+---
+
+## 3. Matrice de Responsabilité
+
+| Responsabilité | IaaS | PaaS | BaaS | SaaS |
+| :--- | :--- | :--- | :--- | :--- |
+| **Application & Code** | Vous | Vous | Vous (Client) | Fournisseur |
+| **Base de Données** | Vous | Vous / Managed | Fournisseur | Fournisseur |
+| **Runtime (Node / Python)** | Vous | Fournisseur | Fournisseur | Fournisseur |
+| **Système d'Exploitation (OS)** | Vous | Fournisseur | Fournisseur | Fournisseur |
+| **Serveurs Physiques & Réseau** | Fournisseur | Fournisseur | Fournisseur | Fournisseur |
+
+---
+
+## Conclusion
+
+Le choix du modèle dépend de la maturité de votre équipe et du temps que vous souhaitez accorder aux opérations (DevOps) :
+- Pour un **MVP ou un SaaS rapide** : privilégiez l'association **PaaS (Vercel)** + **BaaS (Supabase)**.
+- Pour une **infrastructure scalable à coûts maîtrisés** : orientez-vous vers du **IaaS (VPS Netcup/Hetzner)** couplé à un orchestrateur comme **Dokploy**.

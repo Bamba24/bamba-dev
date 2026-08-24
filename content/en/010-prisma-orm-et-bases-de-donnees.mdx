@@ -1,0 +1,61 @@
+---
+title: Prisma ORM & SQL Databases: Modeling, Migrations, and Query Performance
+description: Learn how to secure and optimize SQL database access in TypeScript using Prisma ORM.
+tag: Database
+publishedAt: "2026-07-01"
+published: true
+time: 6
+---
+
+# Prisma ORM & SQL Databases: Modeling, Migrations, and Query Performance
+
+In modern TypeScript web development, **Prisma** is the leading Object-Relational Mapper (ORM), providing end-to-end type safety for relational databases (PostgreSQL, MySQL, SQLite).
+
+---
+
+## 1. Defining Prisma Schema (`schema.prisma`)
+
+```prisma
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  posts     Post[]
+}
+
+model Post {
+  id        String   @id @default(uuid())
+  title     String
+  content   String
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id])
+}
+```
+
+---
+
+## 2. Strongly Typed Prisma Queries
+
+```typescript
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+async function getPublishedPosts() {
+  return await prisma.post.findMany({
+    include: {
+      author: {
+        select: { email: true },
+      },
+    },
+  });
+}
+```
