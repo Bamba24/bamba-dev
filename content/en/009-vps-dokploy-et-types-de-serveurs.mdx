@@ -1,0 +1,32 @@
+---
+title: VPS, Shared Hosting, Dedicated Servers, and Dokploy: Web Application Hosting Guide
+description: A practical guide to web hosting—from classic shared servers to self-hosted VPS setups using Dokploy and Docker.
+tag: DevOps
+publishedAt: "2026-06-25"
+published: true
+time: 7
+---
+
+# VPS, Shared Hosting, Dedicated Servers, and Dokploy: Web Application Hosting Guide
+
+Deploying a web application in production requires choosing the right server infrastructure: **Shared Hosting**, **VPS (Virtual Private Server)**, **Bare Metal Dedicated Servers**, or open-source self-hosted PaaS solutions like **Dokploy**.
+
+---
+
+## 1. Hosting Server Types
+
+| Server Type | Root SSH | Performance | Isolation | Cost |
+| :--- | :--- | :--- | :--- | :--- |
+| **Shared** | ❌ No | Low to Medium | Shared | $ |
+| **VPS** | ✅ Yes | High | Virtual | $$ |
+| **Dedicated** | ✅ Yes | Maximum | Physical | $$$ |
+
+---
+
+## 2. What is Dokploy?
+
+**Dokploy** is an open-source self-hosted PaaS (free Vercel alternative). Installed on a cheap Linux VPS (Hetzner, DigitalOcean), Dokploy allows you to deploy Next.js apps, Node.js APIs, and managed databases (Postgres, Redis) with automatic SSL certificates via Traefik.
+
+```bash
+curl -sSL https://dokploy.com/install.sh | sh
+```

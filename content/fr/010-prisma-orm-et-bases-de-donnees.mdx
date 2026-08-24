@@ -1,0 +1,135 @@
+---
+title: Prisma ORM et Bases de Données SQL : Modélisation, Migrations et Performances
+description: Apprenez à sécuriser et optimiser vos accès aux bases de données SQL en TypeScript avec l'ORM Prisma.
+tag: Database
+publishedAt: "2026-07-01"
+published: true
+time: 6
+---
+
+# Prisma ORM et Bases de Données SQL : Modélisation, Migrations et Performances
+
+Dans le développement d'applications web modernes avec TypeScript, la communication avec la base de données relationnelle (PostgreSQL, MySQL, SQLite) est une brique fondamentale. **Prisma** s'est imposé comme l'ORM (Object-Relational Mapping) de référence grâce à sa sécurité de typage de bout en bout.
+
+Dans cet article, nous allons aborder le fonctionnement du schéma Prisma, la gestion des migrations et les bonnes pratiques d'optimisation des requêtes.
+
+---
+
+## 1. Pourquoi utiliser un ORM moderne comme Prisma ?
+
+Traditionnellement, les requêtes SQL écrites sous forme de chaînes de caractères brutes comportent plusieurs risques :
+- Absence d'autocomplétion dans l'IDE.
+- Risque d'erreurs de frappe sur les noms de colonnes ou de tables.
+- Risque d'injections SQL si les paramètres ne sont pas échappés.
+
+Prisma résout ces problèmes en générant automatiquement un **Client TypeScript fortement typé** à partir de la définition de votre base de données.
+
+---
+
+## 2. Définition du Schéma Prisma (`schema.prisma`)
+
+Le fichier `schema.prisma` est le cœur de votre modélisation. Il contient la connexion à la base de données et la structure de vos modèles.
+
+```prisma
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  name      String?
+  role      Role     @default(USER)
+  posts     Post[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Post {
+  id        String   @id @default(uuid())
+  title     String
+  content   String
+  published Boolean  @default(false)
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+```
+
+---
+
+## 3. Workflow des Migrations
+
+Pour répercuter vos modifications de schéma sur votre base de données de développement ou de production :
+
+```bash
+# Générer et appliquer une migration en environnement de développement
+npx prisma migrate dev --name init_user_post
+
+# Générer le client TypeScript mis à jour
+npx prisma generate
+```
+
+---
+
+## 4. Requêtage typé avec Prisma Client
+
+L'utilisation du client Prisma offre une autocomplétion parfaite et prévient toute erreur de type au moment de la compilation.
+
+```typescript
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+async function getPublishedPostsWithAuthors() {
+  const posts = await prisma.post.findMany({
+    where: {
+      published: true,
+    },
+    include: {
+      author: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      },
+    },
+    orderBy: {
+      createdAt: 'desc',
+    },
+  });
+
+  return posts;
+}
+```
+
+<Note>
+Remarquez l'utilisation de `select` à l'intérieur de `include` : cela permet de ne récupérer que les champs nécessaires de la table `User` et d'éviter d'exposer des données sensibles (comme le mot de passe).
+</Note>
+
+---
+
+## 5. Astuces d'Optimisation des Performances
+
+| Problème fréquent | Solution Prisma |
+| :--- | :--- |
+| **Problème N+1** | Utilisez `include` ou `select` pour charger les relations en une seule jointure optimisée. |
+| **Chargement trop lourd** | Utilisez la pagination avec `take` et `skip` (ou pagination basée sur un curseur `cursor`). |
+| **Pool de connexions saturé** | En environnement Serverless (ex: Next.js / Vercel), utilisez **Prisma Accelerate** ou **PgBouncer** pour la gestion de pool. |
+
+---
+
+## Conclusion
+
+Prisma transforme l'interaction avec la base de données en une expérience fluide, sécurisée et agréable pour les développeurs TypeScript. Associé à une base PostgreSQL robuste, il constitue le socle idéal pour des applications web modernes et évolutives.
