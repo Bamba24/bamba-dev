@@ -91,41 +91,43 @@ export default async function TagPage({
   }
 
   return (
-    <main id="main-content" className="max-w-2xl mx-auto px-4 py-8 sm:py-12 space-y-8 bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-50 transition-colors duration-300">
+    <main id="main-content" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-16 space-y-10 bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-50 transition-colors duration-300">
       
       {/* BOUTON RETOUR */}
       <div>
         <Link
           href={`/${locale}/posts`} 
-          className="inline-flex items-center text-xs font-mono tracking-widest text-zinc-400 dark:text-zinc-500 hover:text-amber-600 dark:hover:text-amber-500 uppercase transition-colors group"
+          className="inline-flex items-center text-xs font-mono tracking-widest text-zinc-500 dark:text-zinc-400 hover:text-amber-600 dark:hover:text-amber-500 uppercase transition-all group px-3 py-1.5 rounded-xl bg-zinc-100 dark:bg-zinc-900 border border-zinc-200/60 dark:border-zinc-800/60"
         >
           <ArrowLeft className="mr-2 h-3.5 w-3.5 group-hover:-translate-x-1 transition-transform" />
           {t("nav.all_archives")}
         </Link>
       </div>
 
-      {/* HEADER DE TAG TYPE CODELYNX */}
-      <header className="space-y-3 pb-6 border-b border-zinc-100 dark:border-zinc-900">
+      {/* HEADER DE TAG */}
+      <header className="space-y-3 pb-8 border-b border-zinc-200/60 dark:border-zinc-900 max-w-3xl">
         <div className="flex items-center gap-2 text-amber-600 dark:text-amber-500">
           <BookOpen size={16} strokeWidth={2.5} />
           <span className="text-xs font-mono uppercase tracking-widest">{t("tag.category")}</span>
         </div>
         
-        <h1 className="text-3xl sm:text-4xl font-semibold tracking-tight capitalize text-zinc-900 dark:text-zinc-50">
+        <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight capitalize text-zinc-900 dark:text-zinc-50">
           #{tag}
         </h1>
 
-        <p className="text-zinc-500 dark:text-zinc-400 text-sm sm:text-base font-light leading-relaxed">
+        <p className="text-zinc-600 dark:text-zinc-400 text-base sm:text-lg font-light leading-relaxed">
           {filteredPosts.length === 1 && t('tag.explorations.one')}
           {filteredPosts.length > 1 && t('tag.explorations.other', { count: filteredPosts.length })}
         </p>
       </header>
 
-      {/* LISTE DES ARTICLES FILTRÉS */}
-      <section className="space-y-2">
-        {filteredPosts.map((post) => (
-          <PostCard key={post.slug} post={post} />
-        ))}
+      {/* LISTE DES ARTICLES FILTRÉS EN GRILLE */}
+      <section>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredPosts.map((post) => (
+            <PostCard key={post.slug} post={post} />
+          ))}
+        </div>
       </section>
 
     </main>

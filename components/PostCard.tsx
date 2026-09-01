@@ -21,7 +21,7 @@ export function PostCard({ post }: { post: Post }) {
     <article className="h-full flex flex-col" aria-labelledby={`post-${post.slug}-title`}>
       <Link 
         href={`/${locale}/posts/${post.slug}`} 
-        className="group relative flex flex-col justify-between h-full p-6 bg-zinc-50/60 dark:bg-zinc-900/40 hover:bg-white dark:hover:bg-zinc-900/80 border border-zinc-200/70 dark:border-zinc-800/70 hover:border-amber-500/50 dark:hover:border-amber-500/50 rounded-2xl transition-all duration-300 hover:shadow-lg hover:shadow-amber-500/5 hover:-translate-y-1"
+        className="group relative flex flex-col justify-between h-full p-6 bg-white dark:bg-zinc-900/40 hover:bg-white dark:hover:bg-zinc-900/80 border border-zinc-200/80 dark:border-zinc-800/70 hover:border-amber-500/50 dark:hover:border-amber-500/50 rounded-2xl transition-all duration-300 shadow-sm hover:shadow-md hover:shadow-amber-500/5 hover:-translate-y-1"
       >
         <div className="space-y-4">
           {/* Header row: Tag Pill + Arrow */}

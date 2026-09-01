@@ -104,8 +104,13 @@ export default function FilteredPosts(props: { posts: Post[] }) {
             ))}
           </div>
         ) : (
-          <div className="py-20 text-center text-zinc-400 italic bg-zinc-50/50 dark:bg-zinc-900/30 rounded-2xl border border-dashed border-zinc-200 dark:border-zinc-800">
-            {t("tag.no_results")}
+          <div className="py-12 px-6 bg-zinc-100/60 dark:bg-zinc-900/40 rounded-2xl border border-dashed border-zinc-200/80 dark:border-zinc-800/80 text-left space-y-1">
+            <p className="text-base font-semibold text-zinc-700 dark:text-zinc-300">
+              {t("tag.no_results")}
+            </p>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400 font-light">
+              Aucun article ne correspond à vos critères. Essayez avec un autre mot-clé ou réinitialisez le filtre.
+            </p>
           </div>
         )}
       </div>

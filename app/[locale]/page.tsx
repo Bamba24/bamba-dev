@@ -34,7 +34,7 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
   const t = await getI18n();
 
   return (
-    <main id="main-content" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-16 space-y-16 bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-50 transition-colors duration-300">
+    <main id="main-content" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-16 space-y-16 bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-50 transition-colors duration-300">
       
       {/* HERO HEADER */}
       <header className="space-y-6 max-w-3xl">

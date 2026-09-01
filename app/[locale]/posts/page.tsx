@@ -57,7 +57,7 @@ export default async function AllPostsPage({ params }: { params: Promise<{ local
   }
 
   return (
-    <main id="main-content" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-16 space-y-10 bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-50 transition-colors duration-300">
+    <main id="main-content" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-16 space-y-10 bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-50 transition-colors duration-300">
       
       {/* HEADER ARCHIVE */}
       <header className="space-y-3 pb-8 border-b border-zinc-200/60 dark:border-zinc-900 max-w-3xl">
