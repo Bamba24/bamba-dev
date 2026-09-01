@@ -50,9 +50,9 @@ export default function FilteredPosts(props: { posts: Post[] }) {
 
   return (
     <div>
-      <section className="mb-16 space-y-8 ">
+      <section className="mb-12 space-y-6">
         <div className="relative group">
-          <Search className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-5 text-zinc-400 group-focus-within:text-amber-600 transition-colors" />
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-zinc-400 group-focus-within:text-amber-600 transition-colors" />
           <label className="sr-only" htmlFor='recherche'>Recherche</label>
           <input 
             type="text" 
@@ -60,19 +60,19 @@ export default function FilteredPosts(props: { posts: Post[] }) {
             placeholder={t("search.placeholder")}
             value={localSearch} 
             onChange={(e) => setLocalSearch(e.target.value)} 
-            className="w-full pl-8 pr-4 py-3 bg-transparent border-b border-zinc-200 dark:border-zinc-800 focus:border-amber-600 outline-none transition-all text-lg placeholder:text-zinc-300"
+            className="w-full pl-12 pr-4 py-3.5 bg-zinc-50/70 dark:bg-zinc-900/50 border border-zinc-200/80 dark:border-zinc-800/80 focus:border-amber-600 dark:focus:border-amber-500 rounded-2xl outline-none transition-all text-base sm:text-lg placeholder:text-zinc-400 shadow-sm"
           />
         </div>
         
-        <div className="flex flex-wrap gap-3">
+        <div className="flex flex-wrap gap-2.5">
           <button 
             type='button'
             aria-pressed={activeTag === null}
             onClick={() => setActiveTag(null)}
-            className={`px-5 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all ${
+            className={`px-4 py-2 rounded-xl text-xs font-mono font-semibold uppercase tracking-wider transition-all ${
               activeTag === null 
-              ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900" 
-              : "text-zinc-500 border border-zinc-200 dark:border-zinc-800 hover:border-amber-600"
+              ? "bg-amber-600 text-white shadow-sm shadow-amber-500/20" 
+              : "bg-zinc-100 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 border border-zinc-200/60 dark:border-zinc-800/60 hover:text-amber-600 dark:hover:text-amber-500"
             }`}
           >
             {t("tag.all")}
@@ -84,27 +84,29 @@ export default function FilteredPosts(props: { posts: Post[] }) {
               aria-pressed={activeTag === tag} 
               key={tag} 
               onClick={() => setActiveTag(tag === activeTag ? null : tag as string)}
-              className={`px-5 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all ${
+              className={`px-4 py-2 rounded-xl text-xs font-mono font-semibold uppercase tracking-wider transition-all ${
                 activeTag === tag 
-                ? "bg-amber-600 text-white border-amber-600" 
-                : "text-zinc-500 border border-zinc-200 dark:border-zinc-800 hover:border-amber-600 hover:text-amber-600"
+                ? "bg-amber-600 text-white shadow-sm shadow-amber-500/20" 
+                : "bg-zinc-100 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 border border-zinc-200/60 dark:border-zinc-800/60 hover:text-amber-600 dark:hover:text-amber-500"
               }`}
             >
-              {tag}
+              #{tag}
             </button>
           ))}
         </div>
       </section>
 
-      <div className="divide-y divide-zinc-100 dark:divide-zinc-900">
+      <div>
         {filteredPosts.length > 0 ? (
-          filteredPosts.map((post) => (
-            <PostCard key={post.slug} post={post} />
-          ))
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredPosts.map((post) => (
+              <PostCard key={post.slug} post={post} />
+            ))}
+          </div>
         ) : (
-          <p className="py-20 text-center text-zinc-400 italic">
+          <div className="py-20 text-center text-zinc-400 italic bg-zinc-50/50 dark:bg-zinc-900/30 rounded-2xl border border-dashed border-zinc-200 dark:border-zinc-800">
             {t("tag.no_results")}
-          </p>
+          </div>
         )}
       </div>
     </div>

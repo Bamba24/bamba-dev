@@ -9,11 +9,26 @@ time: 6
 
 # Prisma ORM & SQL Databases: Modeling, Migrations, and Query Performance
 
-In modern TypeScript web development, **Prisma** is the leading Object-Relational Mapper (ORM), providing end-to-end type safety for relational databases (PostgreSQL, MySQL, SQLite).
+In modern TypeScript web development, communicating with relational databases (PostgreSQL, MySQL, SQLite) is a core requirement. **Prisma** has emerged as the industry-standard Object-Relational Mapper (ORM), delivering end-to-end type safety and developer productivity.
+
+In this guide, we will explore the Prisma schema, migration workflows, typed queries, and performance optimization techniques.
 
 ---
 
-## 1. Defining Prisma Schema (`schema.prisma`)
+## 1. Why Use a Modern ORM Like Prisma?
+
+Writing raw SQL queries as raw strings in application code introduces significant risks:
+- Lack of IDE autocompletion and type checking.
+- Syntax errors on table or column names discovered only at runtime.
+- Vulnerability to SQL injection attacks if parameters are improperly escaped.
+
+Prisma solves these challenges by automatically generating a **strongly typed TypeScript client** derived directly from your declarative database schema.
+
+---
+
+## 2. Defining the Prisma Schema (`schema.prisma`)
+
+The `schema.prisma` file is the source of truth for your data models and database connection.
 
 ```prisma
 datasource db {
@@ -28,34 +43,93 @@ generator client {
 model User {
   id        String   @id @default(uuid())
   email     String   @unique
+  name      String?
+  role      Role     @default(USER)
   posts     Post[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Post {
   id        String   @id @default(uuid())
   title     String
   content   String
+  published Boolean  @default(false)
   authorId  String
-  author    User     @relation(fields: [authorId], references: [id])
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+}
+
+enum Role {
+  USER
+  ADMIN
 }
 ```
 
 ---
 
-## 2. Strongly Typed Prisma Queries
+## 3. Migration Workflow
+
+To sync schema changes with your development or production database:
+
+```bash
+# Generate and apply a new migration in development
+npx prisma migrate dev --name init_user_post
+
+# Generate updated TypeScript Client
+npx prisma generate
+```
+
+---
+
+## 4. Strongly Typed Queries with Prisma Client
+
+Using Prisma Client gives you instant autocompletion and catches invalid fields at compile time.
 
 ```typescript
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-async function getPublishedPosts() {
-  return await prisma.post.findMany({
+async function getPublishedPostsWithAuthors() {
+  const posts = await prisma.post.findMany({
+    where: {
+      published: true,
+    },
     include: {
       author: {
-        select: { email: true },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
       },
     },
+    orderBy: {
+      createdAt: 'desc',
+    },
   });
+
+  return posts;
 }
 ```
+
+<Note>
+Notice the use of `select` inside `include`: this ensures you only query the necessary fields from the `User` table, preventing accidental exposure of sensitive user data.
+</Note>
+
+---
+
+## 5. Performance Optimization Techniques
+
+| Common Pitfall | Prisma Solution |
+| :--- | :--- |
+| **N+1 Query Problem** | Use `include` or `select` to fetch relations in a single optimized SQL join. |
+| **Large Payload Overhead** | Implement pagination using `take` and `skip` (or cursor-based pagination with `cursor`). |
+| **Exhausted Connection Pool** | In Serverless environments (Vercel / Next.js), use **Prisma Accelerate** or **PgBouncer** for connection pooling. |
+
+---
+
+## Conclusion
+
+Prisma turns database interaction into a seamless, type-safe, and enjoyable experience for TypeScript engineers. Paired with a robust PostgreSQL instance, it forms the ideal backend foundation for modern web applications.

@@ -11,22 +11,60 @@ time: 7
 
 Deploying a web application in production requires choosing the right server infrastructure: **Shared Hosting**, **VPS (Virtual Private Server)**, **Bare Metal Dedicated Servers**, or open-source self-hosted PaaS solutions like **Dokploy**.
 
+In this guide, we will compare hosting options and show how to build an economical, self-hosted PaaS alternative using Dokploy.
+
 ---
 
-## 1. Hosting Server Types
+## 1. Web Hosting Server Types Explained
 
-| Server Type | Root SSH | Performance | Isolation | Cost |
+### Shared Hosting
+Multiple websites share CPU, RAM, and network bandwidth on a single physical machine.
+- **Typical Use Case**: Basic WordPress brochure sites, legacy PHP scripts.
+- **Drawbacks**: No SSH root access, no Docker/Node.js support, noisy-neighbor performance impact.
+
+### VPS (Virtual Private Server)
+A virtualized server slice carved out of a physical machine using KVM virtualization.
+- **Typical Use Case**: Modern Node.js APIs, Next.js apps, Docker containers, custom databases.
+- **Advantages**: Full SSH root access, guaranteed resources, predictable low monthly pricing (e.g. $4–$10/month).
+
+### Dedicated Bare Metal Server
+An entire physical machine leased exclusively to your company.
+- **Typical Use Case**: High-traffic enterprise applications, massive database clusters.
+- **Advantages**: Peak hardware performance, no virtualization overhead.
+
+---
+
+## 2. Server Comparison Matrix
+
+| Server Type | Root SSH | Performance | Isolation | Relative Cost |
 | :--- | :--- | :--- | :--- | :--- |
 | **Shared** | ❌ No | Low to Medium | Shared | $ |
-| **VPS** | ✅ Yes | High | Virtual | $$ |
-| **Dedicated** | ✅ Yes | Maximum | Physical | $$$ |
+| **VPS** | ✅ Yes (Root) | High | Virtual | $$ |
+| **Dedicated** | ✅ Yes (Root) | Maximum | Physical | $$$ |
 
 ---
 
-## 2. What is Dokploy?
+## 3. What is Dokploy?
 
-**Dokploy** is an open-source self-hosted PaaS (free Vercel alternative). Installed on a cheap Linux VPS (Hetzner, DigitalOcean), Dokploy allows you to deploy Next.js apps, Node.js APIs, and managed databases (Postgres, Redis) with automatic SSL certificates via Traefik.
+**Dokploy** is an open-source, self-hosted PaaS (a free, self-managed alternative to Vercel or Heroku). Installed on a clean **Linux VPS** (Ubuntu or Debian), Dokploy provides a sleek web interface to manage deployments, databases, and Docker services.
+
+<Note>
+By installing Dokploy on a cheap $5/month VPS (Hetzner, OVH, Netcup), you can host dozens of Next.js, Node.js, Postgres, and Redis containers with automatic SSL via Traefik.
+</Note>
+
+### Core Features of Dokploy:
+- **Git Integration**: Automatic deployment on `git push` via GitHub or GitLab webhooks.
+- **One-Click Managed Databases**: Provision PostgreSQL, MySQL, MongoDB, and Redis instantly.
+- **Automatic SSL Certificates**: Automated Let's Encrypt SSL issuance and renewal.
+- **Monitoring & Logs**: Real-time container logs, memory/CPU usage metrics, and environment variable management.
 
 ```bash
+# One-command installation on a fresh Ubuntu VPS
 curl -sSL https://dokploy.com/install.sh | sh
 ```
+
+---
+
+## Conclusion
+
+For modern web developers and startups, pairing a **high-performance VPS** with an orchestration tool like **Dokploy** offers the best of both worlds: the seamless developer experience of Vercel without vendor lock-in or unpredictable usage billing.

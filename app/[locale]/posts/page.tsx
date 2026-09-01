@@ -57,20 +57,20 @@ export default async function AllPostsPage({ params }: { params: Promise<{ local
   }
 
   return (
-    <main id="main-content" className="max-w-2xl mx-auto px-4 py-8 sm:py-12 space-y-8 bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-50 transition-colors duration-300">
+    <main id="main-content" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-16 space-y-10 bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-50 transition-colors duration-300">
       
-      {/* HEADER TYPE CODELYNX */}
-      <header className="space-y-3 pb-6 border-b border-zinc-100 dark:border-zinc-900">
-        <h1 className="text-3xl sm:text-4xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
+      {/* HEADER ARCHIVE */}
+      <header className="space-y-3 pb-8 border-b border-zinc-200/60 dark:border-zinc-900 max-w-3xl">
+        <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-zinc-900 dark:text-zinc-50">
           {t('archive.title_main')}
         </h1>
-        <p className="text-zinc-500 dark:text-zinc-400 text-sm sm:text-base font-light leading-relaxed">
+        <p className="text-zinc-600 dark:text-zinc-400 text-base sm:text-lg font-light leading-relaxed">
           {t('archive.description')}
         </p>
       </header>
 
-      {/* RECHERCHE ET LISTE DES ARTICLES */}
-      <section className="space-y-6">
+      {/* RECHERCHE ET LISTE DES ARTICLES EN GRILLE */}
+      <section className="space-y-8">
         <FilteredPosts posts={posts} />
       </section>
 

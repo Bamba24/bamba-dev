@@ -9,15 +9,15 @@ time: 7
 
 # Complete NestJS Guide: Modular Architecture, Decorators, and Dependency Injection
 
-When it comes to building complex server-side applications with Node.js, **NestJS** has established itself as the go-to TypeScript framework. Heavily inspired by Angular's architecture, NestJS provides a strict, strongly typed, and highly maintainable modular structure.
+When it comes to building complex server-side applications with Node.js, **NestJS** has established itself as the premier TypeScript framework. Directly inspired by Angular's architecture and design patterns, NestJS provides a strict, strongly typed, and highly maintainable modular structure out of the box.
 
-In this article, we will explore the core pillars of NestJS: **Modules**, **Controllers**, **Services (Providers)**, and **Dependency Injection**.
+In this article, we will explore the core pillars of NestJS: **Modules**, **Controllers**, **Services (Providers)**, and **Dependency Injection**, followed by an overview of NestJS's execution lifecycle.
 
 ---
 
 ## 1. Modular Architecture
 
-In NestJS, everything is organized into **Modules**. A module is a class decorated with `@Module()` that provides metadata used by Nest to organize the application structure.
+In NestJS, everything is organized into **Modules**. A module is a class annotated with the `@Module()` decorator that provides the metadata Nest uses to organize application structure and dependencies.
 
 ```typescript
 // user.module.ts
@@ -28,21 +28,24 @@ import { UserService } from './user.service';
 @Module({
   controllers: [UserController],
   providers: [UserService],
-  exports: [UserService],
+  exports: [UserService], // Exporting service for consumption by other modules
 })
 export class UserModule {}
 ```
+
+Each main feature domain of your application (Users, Auth, Payments) resides in its own isolated module, all imported into the root `AppModule`.
 
 ---
 
 ## 2. Controllers
 
-Controllers are responsible for handling incoming HTTP requests and returning responses to the client. They use intuitive decorators like `@Get()`, `@Post()`, `@Put()`, and `@Delete()`.
+Controllers are responsible for handling incoming HTTP requests and returning structured responses to the client. They utilize intuitive decorators to map routes (`@Get()`, `@Post()`, `@Put()`, `@Delete()`).
 
 ```typescript
 // user.controller.ts
 import { Controller, Get, Post, Body, Param, ParseIntPipe } from '@nestjs/common';
 import { UserService } from './user.service';
+import { CreateUserDto } from './dto/create-user.dto';
 
 @Controller('users')
 export class UserController {
@@ -57,27 +60,77 @@ export class UserController {
   async findOne(@Param('id', ParseIntPipe) id: number) {
     return this.userService.findOne(id);
   }
+
+  @Post()
+  async create(@Body() createUserDto: CreateUserDto) {
+    return this.userService.create(createUserDto);
+  }
 }
 ```
 
+<Note>
+Notice the use of `ParseIntPipe`: Pipes in NestJS automatically validate and transform incoming request parameters before they reach controller route handlers.
+</Note>
+
 ---
 
-## 3. Services and Dependency Injection
+## 3. Services and Dependency Injection (DI)
 
-Business logic and database interactions should be encapsulated inside **Injectable Services**:
+Controllers should remain lean and only handle HTTP protocol concerns. All business logic, database queries, and rule evaluations belong in **Injectable Services**:
 
 ```typescript
 // user.service.ts
 import { Injectable, NotFoundException } from '@nestjs/common';
 
+export interface User {
+  id: number;
+  name: string;
+  email: string;
+}
+
 @Injectable()
 export class UserService {
-  private users = [];
+  private users: User[] = [];
 
-  async findAll() {
+  async findAll(): Promise<User[]> {
     return this.users;
+  }
+
+  async findOne(id: number): Promise<User> {
+    const user = this.users.find((u) => u.id === id);
+    if (!user) {
+      throw new NotFoundException(`User with ID ${id} not found`);
+    }
+    return user;
+  }
+
+  async create(userDto: Omit<User, 'id'>): Promise<User> {
+    const newUser = { id: Date.now(), ...userDto };
+    this.users.push(newUser);
+    return newUser;
   }
 }
 ```
 
-NestJS automatically manages the lifecycle and instantiation of services via its **Inversion of Control (IoC) Container**.
+NestJS automatically manages service instantiation and lifecycle via its built-in **Inversion of Control (IoC) Container**.
+
+---
+
+## 4. NestJS Request Execution Pipeline
+
+Here is the exact request handling lifecycle inside NestJS:
+
+| Stage | NestJS Feature | Purpose |
+| :--- | :--- | :--- |
+| 1 | **Middlewares** | Intercepts HTTP requests before route handler matching (e.g., logging, CORS). |
+| 2 | **Guards** | Handles authentication and authorization (e.g., JWT Auth Guard). |
+| 3 | **Interceptors** | Transforms request/response payloads or decorates execution (e.g., caching, response mapping). |
+| 4 | **Pipes** | Validates and converts request payloads/parameters against DTO schemas. |
+| 5 | **Controller** | Executes the matched handler and calls underlying services. |
+| 6 | **Exception Filters** | Catches unhandled exceptions and formats clean HTTP error responses. |
+
+---
+
+## Conclusion
+
+NestJS brings enterprise rigor and architectural discipline to Node.js applications that minimalist Express setups lack. Combined with TypeScript and modern ORMs like Prisma or TypeORM, it empowers teams to build scalable, production-grade backends with confidence.

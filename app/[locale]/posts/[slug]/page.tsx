@@ -111,17 +111,17 @@ export default async function Post({ params }: { params: Promise<{ slug: string,
   };
 
   return (
-    <main id="main-content" className="w-full max-w-4xl mx-auto px-4 py-12 sm:py-16 sm:px-6 lg:py-24 transition-colors duration-300 min-w-0 overflow-hidden"> 
+    <main id="main-content" className="w-full max-w-4xl lg:max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-16 transition-colors duration-300 min-w-0 overflow-hidden"> 
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
       
       {/* 1. RETOUR À L'ACCUEIL */}
-      <div className="mb-12">
+      <div className="mb-8">
         <Link 
           href={`/${locale}`} 
-          className="inline-flex items-center text-xs font-mono tracking-widest text-zinc-400 dark:text-zinc-500 hover:text-amber-600 dark:hover:text-amber-500 uppercase transition-all group"
+          className="inline-flex items-center text-xs font-mono tracking-widest text-zinc-500 dark:text-zinc-400 hover:text-amber-600 dark:hover:text-amber-500 uppercase transition-all group px-3 py-1.5 rounded-xl bg-zinc-100 dark:bg-zinc-900 border border-zinc-200/60 dark:border-zinc-800/60"
         >
           <ArrowLeft className="mr-2 h-3.5 w-3.5 group-hover:-translate-x-1 transition-transform" aria-hidden="true" />
           {t('nav.back_to_home')}
@@ -129,12 +129,12 @@ export default async function Post({ params }: { params: Promise<{ slug: string,
       </div>
 
       {/* 2. EN-TÊTE ÉDITORIAL DE L'ARTICLE */}
-      <header className="space-y-6 pb-12 border-b border-zinc-100 dark:border-zinc-900 mb-12">
+      <header className="space-y-6 pb-10 border-b border-zinc-200/60 dark:border-zinc-900 mb-10">
         <div className="space-y-4">
-          <span className="inline-flex items-center text-xs font-mono tracking-wider uppercase text-amber-600 dark:text-amber-500 font-semibold">
+          <span className="px-3 py-1 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 text-xs font-mono font-semibold uppercase tracking-wider inline-block">
             #{post.tag}
           </span>
-          <h1 className="text-3xl sm:text-4xl md:text-5xl font-normal tracking-tight text-zinc-900 dark:text-zinc-50 leading-[1.15] break-words">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50 leading-[1.15] break-words">
             {post.title}
           </h1>
         </div>
