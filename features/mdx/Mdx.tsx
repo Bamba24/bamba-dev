@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { MDXRemote } from "next-mdx-remote-client/rsc";
 import { component } from "./MdxComponents";
-import {mdxRehypePlugins} from "./Mdx-plugin";
+import { mdxRehypePlugins, mdxRemarkPlugins } from "./Mdx-plugin";
 
 export default async function Page({children}: {children: string}) {
 
@@ -12,6 +12,7 @@ export default async function Page({children}: {children: string}) {
          components={component}
          options={{
           mdxOptions: {
+            remarkPlugins: mdxRemarkPlugins,
             rehypePlugins: mdxRehypePlugins
           }
          }}
