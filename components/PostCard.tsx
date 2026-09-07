@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useI18n, useCurrentLocale } from "@/locales/client";
-import { ArrowUpRight, Clock, Calendar } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
 
 interface Post {
   slug: string;
@@ -18,56 +18,52 @@ export function PostCard({ post }: { post: Post }) {
   const locale = useCurrentLocale();
 
   return (
-    <article className="h-full flex flex-col" aria-labelledby={`post-${post.slug}-title`}>
-      <Link 
-        href={`/${locale}/posts/${post.slug}`} 
-        className="group relative flex flex-col justify-between h-full p-6 bg-white dark:bg-zinc-900/40 hover:bg-white dark:hover:bg-zinc-900/80 border border-zinc-200/80 dark:border-zinc-800/70 hover:border-amber-500/50 dark:hover:border-amber-500/50 rounded-2xl transition-all duration-300 shadow-sm hover:shadow-md hover:shadow-amber-500/5 hover:-translate-y-1"
+    <article className="group" aria-labelledby={`post-${post.slug}-title`}>
+      <Link
+        href={`/${locale}/posts/${post.slug}`}
+        className="block -mx-3 p-3 sm:-mx-4 sm:p-4 rounded-xl hover:bg-muted/40 transition-colors border border-transparent hover:border-border/40"
       >
-        <div className="space-y-4">
-          {/* Header row: Tag Pill + Arrow */}
-          <div className="flex items-center justify-between gap-2">
-            {post.tag ? (
-              <span className="px-2.5 py-1 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 text-[11px] font-mono font-semibold uppercase tracking-wider">
+        <div className="flex flex-col gap-1.5">
+          {/* Metadata Row: Date + Read time + Tag */}
+          <div className="flex items-center justify-between text-xs font-mono text-muted-foreground">
+            <div className="flex items-center gap-2">
+              <time dateTime={post.publishedAt} className="tabular-nums">
+                {new Date(post.publishedAt).toLocaleDateString(locale, {
+                  year: "numeric",
+                  month: "short",
+                  day: "numeric",
+                })}
+              </time>
+              <span>•</span>
+              <span>
+                {post.time} {t("post.read_time")}
+              </span>
+            </div>
+
+            {post.tag && (
+              <span className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground/70">
                 #{post.tag}
               </span>
-            ) : <div />}
-
-            <div className="w-8 h-8 rounded-xl bg-white dark:bg-zinc-800/80 border border-zinc-200/80 dark:border-zinc-700/60 flex items-center justify-center text-zinc-400 group-hover:text-amber-600 dark:group-hover:text-amber-400 group-hover:border-amber-500/40 transition-all">
-              <ArrowUpRight className="w-4 h-4 transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
-            </div>
+            )}
           </div>
 
-          {/* Title */}
-          <h3 
-            id={`post-${post.slug}-title`} 
-            className="text-lg sm:text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50 group-hover:text-amber-600 dark:group-hover:text-amber-500 transition-colors leading-snug line-clamp-2"
-          >
-            {post.title}
-          </h3>
+          {/* Title Row with subtle arrow */}
+          <div className="flex items-start justify-between gap-4 pt-1">
+            <h3
+              id={`post-${post.slug}-title`}
+              className="text-base sm:text-lg font-semibold tracking-tight text-foreground group-hover:text-primary transition-colors leading-snug"
+            >
+              {post.title}
+            </h3>
+            <ArrowUpRight className="w-4 h-4 text-muted-foreground/60 group-hover:text-primary group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all shrink-0 mt-1" />
+          </div>
 
           {/* Description */}
-          <p className="text-xs sm:text-sm text-zinc-500 dark:text-zinc-400 line-clamp-3 leading-relaxed font-light">
-            {post.description}
-          </p>
-        </div>
-
-        {/* Footer Meta */}
-        <div className="pt-6 mt-6 border-t border-zinc-200/50 dark:border-zinc-800/50 flex items-center justify-between text-[11px] font-mono text-zinc-400 dark:text-zinc-500">
-          <div className="flex items-center gap-1.5">
-            <Calendar className="w-3.5 h-3.5 opacity-70" />
-            <time dateTime={post.publishedAt} className="tabular-nums">
-              {new Date(post.publishedAt).toLocaleDateString(locale, {
-                day: "numeric",
-                month: "short",
-                year: "numeric"
-              })}
-            </time>
-          </div>
-
-          <div className="flex items-center gap-1.5">
-            <Clock className="w-3.5 h-3.5 opacity-70" />
-            <span>{post.time} {t('post.read_time')}</span>
-          </div>
+          {post.description && (
+            <p className="text-sm text-muted-foreground line-clamp-2 leading-relaxed font-light mt-0.5">
+              {post.description}
+            </p>
+          )}
         </div>
       </Link>
     </article>

@@ -1,35 +1,50 @@
 import type { Metadata } from "next";
-import { Nunito } from "next/font/google";
-import { ThemeProvider } from "@/components/themeProvider"
+import { Inter, Oxanium, JetBrains_Mono } from "next/font/google";
+import { ThemeProvider } from "@/components/themeProvider";
 import ProviderLayout from "./provider";
 import "./globals.css";
 
-const geistSans = Nunito({
-  variable: "--font-nunito-sans",
+const fontSans = Inter({
+  variable: "--font-sans",
   subsets: ["latin"],
   display: "swap",
-  fallback: ["system-ui", "arial", "sans-serif"],
 });
 
+const fontPixel = Oxanium({
+  variable: "--font-pixel-grid",
+  subsets: ["latin"],
+  display: "swap",
+  weight: ["400", "500", "600", "700", "800"],
+});
+
+const fontMono = JetBrains_Mono({
+  variable: "--font-mono",
+  subsets: ["latin"],
+  display: "swap",
+});
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'https://bambadev.com'),
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_SITE_URL || "https://bambadev.com"
+  ),
   title: {
-    default: "BambaDev - Portfolio & Blog",
-    template: "%s | BambaDev" // Permet d'avoir "Nom de l'article | BambaDev"
+    default: "bamba.dev - Blog & Engineering",
+    template: "%s | bamba.dev",
   },
-  description: "Développeur Fullstack JavaScript spécialisé React, Next.js et NestJS.",
+  description:
+    "Engineering, software architecture, TypeScript, Next.js, and modern developer tooling.",
   openGraph: {
-    title: "BambaDev",
-    description: "Partage de connaissances sur le développement web et mobile.",
-    url: process.env.NEXT_PUBLIC_SITE_URL || 'https://bambadev.com',
-    siteName: "BambaDev",
+    title: "bamba.dev",
+    description:
+      "Engineering, software architecture, TypeScript, Next.js, and modern developer tooling.",
+    url: process.env.NEXT_PUBLIC_SITE_URL || "https://bambadev.com",
+    siteName: "bamba.dev",
     images: [
       {
-        url: "/og-background.webp", // Image par défaut dans ton dossier public
+        url: "/og-background.webp",
         width: 1200,
         height: 630,
-        alt: "BambaDev Portfolio",
+        alt: "bamba.dev Blog",
       },
     ],
     locale: "fr_FR",
@@ -37,8 +52,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "BambaDev",
-    description: "Développeur Fullstack JavaScript",
+    title: "bamba.dev",
+    description: "Engineering & Software Architecture",
     images: ["/og-background.webp"],
   },
 };
@@ -48,26 +63,26 @@ export default async function RootLayout({
   params,
 }: {
   children: React.ReactNode;
-  params: Promise<{ locale: string }>; // On définit params comme une Promise
+  params: Promise<{ locale: string }>;
 }) {
-  const { locale } = await params; // On attend la résolution des params
+  const { locale } = await params;
 
   return (
     <html
-      lang={locale} // Utilise la vraie locale ici au lieu de "fr" en dur
-      className={`${geistSans.variable} h-full antialiased  `}
+      lang={locale}
+      className={`${fontSans.variable} ${fontPixel.variable} ${fontMono.variable} min-h-full antialiased`}
       suppressHydrationWarning
     >
-      <body className="min-h-full flex flex-col">
+      <body className="min-h-full bg-background text-foreground antialiased font-sans">
         <ThemeProvider
-         attribute="class" 
-         defaultTheme="system" 
-         enableSystem
-         disableTransitionOnChange
+          attribute="class"
+          defaultTheme="dark"
+          enableSystem
+          disableTransitionOnChange
         >
-        <ProviderLayout params={params}>
-            {children}
-        </ProviderLayout>
+          <div className="noise3 min-h-screen">
+            <ProviderLayout params={params}>{children}</ProviderLayout>
+          </div>
         </ThemeProvider>
       </body>
     </html>
