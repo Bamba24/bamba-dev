@@ -13,8 +13,6 @@ Deploying a web application in production requires choosing the right server inf
 
 In this guide, we will compare hosting options and show how to build an economical, self-hosted PaaS alternative using Dokploy.
 
----
-
 ## 1. Web Hosting Server Types Explained
 
 ### Shared Hosting
@@ -32,8 +30,6 @@ An entire physical machine leased exclusively to your company.
 - **Typical Use Case**: High-traffic enterprise applications, massive database clusters.
 - **Advantages**: Peak hardware performance, no virtualization overhead.
 
----
-
 ## 2. Server Comparison Matrix
 
 | Server Type | Root SSH | Performance | Isolation | Relative Cost |
@@ -41,8 +37,6 @@ An entire physical machine leased exclusively to your company.
 | **Shared** | ❌ No | Low to Medium | Shared | $ |
 | **VPS** | ✅ Yes (Root) | High | Virtual | $$ |
 | **Dedicated** | ✅ Yes (Root) | Maximum | Physical | $$$ |
-
----
 
 ## 3. What is Dokploy?
 
@@ -62,8 +56,6 @@ By installing Dokploy on a cheap $5/month VPS (Hetzner, OVH, Netcup), you can ho
 # One-command installation on a fresh Ubuntu VPS
 curl -sSL https://dokploy.com/install.sh | sh
 ```
-
----
 
 ## Conclusion
 

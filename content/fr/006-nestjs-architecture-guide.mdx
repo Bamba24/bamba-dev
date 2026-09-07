@@ -13,8 +13,6 @@ Lorsqu'il s'agit de créer des applications côté serveur complexes avec Node.j
 
 Dans cet article, nous allons passer en revue les pylônes de l'architecture NestJS : les **Modules**, les **Contrôleurs**, les **Services (Providers)** et l'**Injection de dépendances**.
 
----
-
 ## 1. L'Architecture Modulaire
 
 Dans NestJS, tout s'organise sous forme de **Modules**. Un module est une classe annotée avec le décorateur `@Module()` qui fournit les métadonnées nécessaires à Nest pour organiser la structure de l'application.
@@ -34,8 +32,6 @@ export class UserModule {}
 ```
 
 Chaque fonctionnalité principale de votre application (Utilisateurs, Auth, Paiements) possède son propre module, le tout étant importé dans le module racine `AppModule`.
-
----
 
 ## 2. Les Contrôleurs (Controllers)
 
@@ -71,8 +67,6 @@ export class UserController {
 <Note>
 Remarquez l'utilisation de `ParseIntPipe` : les Pipes dans NestJS permettent de valider et de transformer automatiquement les paramètres de requêtes avant qu'ils n'atteignent le contrôleur.
 </Note>
-
----
 
 ## 3. Les Services et l'Injection de Dépendances (DI)
 
@@ -114,8 +108,6 @@ export class UserService {
 
 NestJS gère automatiquement le cycle de vie et l'instanciation du `UserService` grâce à son conteneur d'**Injection de Dépendances (IoC Container)**.
 
----
-
 ## 4. Comparatif de la chaîne d'exécution NestJS
 
 Voici le parcours d'une requête HTTP dans NestJS :
@@ -128,8 +120,6 @@ Voici le parcours d'une requête HTTP dans NestJS :
 | 4 | **Pipes** | Valide et transforme les DTOs/paramètres. |
 | 5 | **Controller** | Exécute la méthode de route et fait appel au Service. |
 | 6 | **Exception Filters** | Attrape et formate les erreurs renvoyées au client. |
-
----
 
 ## Conclusion
 

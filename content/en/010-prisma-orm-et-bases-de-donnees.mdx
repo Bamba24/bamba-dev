@@ -13,8 +13,6 @@ In modern TypeScript web development, communicating with relational databases (P
 
 In this guide, we will explore the Prisma schema, migration workflows, typed queries, and performance optimization techniques.
 
----
-
 ## 1. Why Use a Modern ORM Like Prisma?
 
 Writing raw SQL queries as raw strings in application code introduces significant risks:
@@ -23,8 +21,6 @@ Writing raw SQL queries as raw strings in application code introduces significan
 - Vulnerability to SQL injection attacks if parameters are improperly escaped.
 
 Prisma solves these challenges by automatically generating a **strongly typed TypeScript client** derived directly from your declarative database schema.
-
----
 
 ## 2. Defining the Prisma Schema (`schema.prisma`)
 
@@ -66,8 +62,6 @@ enum Role {
 }
 ```
 
----
-
 ## 3. Migration Workflow
 
 To sync schema changes with your development or production database:
@@ -79,8 +73,6 @@ npx prisma migrate dev --name init_user_post
 # Generate updated TypeScript Client
 npx prisma generate
 ```
-
----
 
 ## 4. Strongly Typed Queries with Prisma Client
 
@@ -118,8 +110,6 @@ async function getPublishedPostsWithAuthors() {
 Notice the use of `select` inside `include`: this ensures you only query the necessary fields from the `User` table, preventing accidental exposure of sensitive user data.
 </Note>
 
----
-
 ## 5. Performance Optimization Techniques
 
 | Common Pitfall | Prisma Solution |
@@ -127,8 +117,6 @@ Notice the use of `select` inside `include`: this ensures you only query the nec
 | **N+1 Query Problem** | Use `include` or `select` to fetch relations in a single optimized SQL join. |
 | **Large Payload Overhead** | Implement pagination using `take` and `skip` (or cursor-based pagination with `cursor`). |
 | **Exhausted Connection Pool** | In Serverless environments (Vercel / Next.js), use **Prisma Accelerate** or **PgBouncer** for connection pooling. |
-
----
 
 ## Conclusion
 

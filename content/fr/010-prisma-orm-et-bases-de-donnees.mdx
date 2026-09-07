@@ -13,8 +13,6 @@ Dans le développement d'applications web modernes avec TypeScript, la communica
 
 Dans cet article, nous allons aborder le fonctionnement du schéma Prisma, la gestion des migrations et les bonnes pratiques d'optimisation des requêtes.
 
----
-
 ## 1. Pourquoi utiliser un ORM moderne comme Prisma ?
 
 Traditionnellement, les requêtes SQL écrites sous forme de chaînes de caractères brutes comportent plusieurs risques :
@@ -23,8 +21,6 @@ Traditionnellement, les requêtes SQL écrites sous forme de chaînes de caract�
 - Risque d'injections SQL si les paramètres ne sont pas échappés.
 
 Prisma résout ces problèmes en générant automatiquement un **Client TypeScript fortement typé** à partir de la définition de votre base de données.
-
----
 
 ## 2. Définition du Schéma Prisma (`schema.prisma`)
 
@@ -66,8 +62,6 @@ enum Role {
 }
 ```
 
----
-
 ## 3. Workflow des Migrations
 
 Pour répercuter vos modifications de schéma sur votre base de données de développement ou de production :
@@ -79,8 +73,6 @@ npx prisma migrate dev --name init_user_post
 # Générer le client TypeScript mis à jour
 npx prisma generate
 ```
-
----
 
 ## 4. Requêtage typé avec Prisma Client
 
@@ -118,8 +110,6 @@ async function getPublishedPostsWithAuthors() {
 Remarquez l'utilisation de `select` à l'intérieur de `include` : cela permet de ne récupérer que les champs nécessaires de la table `User` et d'éviter d'exposer des données sensibles (comme le mot de passe).
 </Note>
 
----
-
 ## 5. Astuces d'Optimisation des Performances
 
 | Problème fréquent | Solution Prisma |
@@ -127,8 +117,6 @@ Remarquez l'utilisation de `select` à l'intérieur de `include` : cela permet d
 | **Problème N+1** | Utilisez `include` ou `select` pour charger les relations en une seule jointure optimisée. |
 | **Chargement trop lourd** | Utilisez la pagination avec `take` et `skip` (ou pagination basée sur un curseur `cursor`). |
 | **Pool de connexions saturé** | En environnement Serverless (ex: Next.js / Vercel), utilisez **Prisma Accelerate** ou **PgBouncer** pour la gestion de pool. |
-
----
 
 ## Conclusion
 

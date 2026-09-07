@@ -13,8 +13,6 @@ In backend engineering, choosing an API framework shapes your development speed,
 
 In this article, we will compare both frameworks across architecture, throughput, data validation, and developer experience.
 
----
-
 ## 1. Overview of Framework Philosophies
 
 ### Django & Django REST Framework (DRF)
@@ -27,8 +25,6 @@ In this article, we will compare both frameworks across architecture, throughput
 - **Philosophy**: High throughput, minimal overhead, JSON Schema / Zod schema validation, and modular plugin architecture.
 - **Ideal Use Cases**: High-performance microservices, real-time REST / GraphQL APIs, type-safe fullstack TypeScript projects.
 
----
-
 ## 2. Technical Comparison Matrix
 
 | Feature | Django / DRF | Fastify (Node.js) |
@@ -39,8 +35,6 @@ In this article, we will compare both frameworks across architecture, throughput
 | **Admin Panel** |  Built-in Native Admin | ❌ Custom Built |
 | **Native ORM** |  Powerful Django ORM | ❌ Bring Your Own (Prisma/Drizzle) |
 | **Data Validation** | Django Serializers / Pydantic | JSON Schema / Zod |
-
----
 
 ## 3. Fastify & TypeScript Code Example
 
@@ -80,8 +74,6 @@ const start = async () => {
 start();
 ```
 
----
-
 ## 4. When to Choose Django vs Fastify?
 
 ### Choose **Django** if:
@@ -93,8 +85,6 @@ start();
 - Ultra-low latency and maximum throughput under heavy load are paramount.
 - Your team uses TypeScript and wants to share types seamlessly between frontend (Next.js/React) and backend.
 - You are building clean, lightweight microservices.
-
----
 
 ## Conclusion
 

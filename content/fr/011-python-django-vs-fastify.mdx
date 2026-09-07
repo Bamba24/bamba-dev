@@ -13,8 +13,6 @@ Dans l'univers du développement backend, le choix de la technologie d'API condi
 
 Dans cet article, nous allons comparer ces deux frameworks sur l'architecture, la vitesse, la gestion de la concurrence et l'écosystème.
 
----
-
 ## 1. Présentation des deux frameworks
 
 ### Django & Django REST Framework (DRF)
@@ -27,8 +25,6 @@ Dans cet article, nous allons comparer ces deux frameworks sur l'architecture, l
 - **Philosophie** : Vitesse maximale, faible overhead et architecture basée sur des plugins et des schémas JSON (JSON Schema / TypeBox / Zod).
 - **Cas d'usage idéaux** : Microservices haute performance, APIs REST / GraphQL temps réel, backend TypeScript.
 
----
-
 ## 2. Tableau Comparatif Technique
 
 | Critère | Django / DRF | Fastify (Node.js) |
@@ -39,8 +35,6 @@ Dans cet article, nous allons comparer ces deux frameworks sur l'architecture, l
 | **Panneau d'Admin** |  Inclus nativement | ❌ À développer soi-même |
 | **ORM natif** |  Django ORM très puissant | ❌ Libre choix (Prisma, Drizzle) |
 | **Validation des données** | Django Serializers / Pydantic | JSON Schema / Zod |
-
----
 
 ## 3. Exemples de Code
 
@@ -81,8 +75,6 @@ const start = async () => {
 start();
 ```
 
----
-
 ## 4. Quand choisir Django ou Fastify ?
 
 ### Choisissez **Django** si :
@@ -94,8 +86,6 @@ start();
 - La vitesse de réponse sous forte charge et le faible temps de latence sont prioritaires.
 - Votre équipe maîtrise TypeScript et souhaite partager les types entre le frontend (Next.js/React) et le backend.
 - Vous construisez une architecture orientée microservices épurée.
-
----
 
 ## Conclusion
 

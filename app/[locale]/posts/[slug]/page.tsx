@@ -190,10 +190,8 @@ export default async function Post({
 
           prose-h2:text-lg 
           sm:prose-h2:text-xl 
-          prose-h2:pt-6 
-          prose-h2:pb-2 
-          prose-h2:border-b 
-          prose-h2:border-border/30
+          prose-h2:pt-8 
+          prose-h2:pb-2
 
           prose-h3:text-base
           sm:prose-h3:text-lg
