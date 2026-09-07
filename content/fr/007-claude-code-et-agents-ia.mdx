@@ -1,56 +1,197 @@
 ---
-title: "Claude Code et la Révolution des Agents IA : CLI, MCP et Workflows de Développement"
-description: "Exploration de Claude Code, du Model Context Protocol (MCP) et de la façon d'accélérer son workflow avec des agents IA autonomes."
+title: "Claude Code et la Révolution des Agents IA : CLI, Protocole MCP et Nouveaux Workflows de Dev"
+description: "Plongée technique dans l'ère des agents autonomes de programmation : fonctionnement de Claude Code dans le terminal, architecture du Model Context Protocol (MCP), et implémentation d'un serveur MCP en TypeScript."
 tag: IA
 publishedAt: "2026-06-15"
 published: true
-time: 6
+time: 11
 ---
 
-L'intégration de l'Intelligence Artificielle dans le quotidien des développeurs passe à la vitesse supérieure. Après la génération de code ponctuelle (autocomplétion) et les assistants de chat, nous sommes entrés dans l'ère des **Agents IA Autonomes**.
+L'assistance par Intelligence Artificielle pour les développeurs a franchi trois étapes décisives en moins de cinq ans :
+1. **L'autocomplétion de code** (GitHub Copilot) : prédiction de la ligne suivante au sein de l'éditeur.
+2. **Le chat interactif** (ChatGPT, Claude) : échange conversationnel nécessitant de copier-coller manuellement le code et les erreurs.
+3. **L'ère des Agents Autonomes** (**Claude Code**, Antigravity, Cursor) : des systèmes capables d'inspecter un dépôt Git, d'exécuter des commandes de terminal, d'analyser les traces de bugs, de modifier des dizaines de fichiers de façon coordonnée et de s'auto-corriger.
 
-Parmi les innovations les plus marquantes figure **Claude Code**, un outil en ligne de commande (CLI) développé par Anthropic, et le standard émergent **MCP (Model Context Protocol)**.
+Dans ce dossier technique, nous explorons l'architecture interne de **Claude Code** (le CLI agence d'Anthropic) et nous disséquons le standard ouvert qui est en train d'unifier l'écosystème : le **Model Context Protocol (MCP)**.
 
-## 1. Qu'est-ce que Claude Code ?
+## 1. Comment Fonctionne Claude Code : La Boucle ReAct
 
-**Claude Code** est un assistant de codage agence directement intégré dans le terminal de commande. Contrairement aux simples extensions d'éditeurs, Claude Code a une compréhension globale de votre projet.
+Contrairement à un simple plugin IDE qui ne "voit" que le fichier actif dans l'éditeur, Claude Code opère directement dans le shell de votre machine selon une boucle agentique **ReAct** (*Reasoning + Acting*) :
 
-### Fonctionnalités clés :
-- **Inspection du projet** : Analyse l'arborescence, lit les fichiers de configuration et comprend les dépendances.
-- **Exécution de commandes** : Lance vos tests automatisés (`npm test`), les vérifications de typage (`tsc`) et les linters.
-- **Edition intelligente** : Modifie plusieurs fichiers de façon synchrone en respectant les conventions de votre codebase.
-- **Auto-Correction** : Si un test ou une compilation échoue après sa modification, l'agent lit la trace d'erreur et retente une correction ciblée.
+```txt
+                              [ Objectif du Dev ]
+                                       │
+                                       ▼
+                       ┌──────────────────────────────┐
+                       │      1. PENSÉE (Reasoning)   │
+                       │ Analyse du contexte & plan   │
+                       └───────────────┬──────────────┘
+                                       │
+                                       ▼
+                       ┌──────────────────────────────┐
+                       │       2. ACTION (Acting)     │
+                       │ Appel d'outil (Read/Edit/Run)│
+                       └───────────────┬──────────────┘
+                                       │
+                                       ▼
+                       ┌──────────────────────────────┐
+                       │     3. OBSERVATION (Obs)     │
+                       │ Sortie terminal, logs d'erreur│
+                       └───────────────┬──────────────┘
+                                       │
+                         Succès ? ─────┴───── Non (Auto-correction)
+                            │                       │
+                           OUI                      └──────┐
+                            ▼                              │
+                   [ Commit & PR Git ]                     ▼
+                                            (Nouvelle Pensée corrective)
+```
+
+### Les 4 Outils Fondamentaux du CLI
+Pour interagir avec votre machine en toute sécurité, l'agent dispose de primitives standardisées :
+- **Glob / Grep / Read** : Découverte sémantique de l'arborescence et lecture ciblée des tranches de code sans saturer la fenêtre de contexte.
+- **File Edit** : Modifications atomiques sous forme de diffs précis pour préserver les commentaires et le style existant.
+- **Bash Execution** : Exécution de tests (`npm test`), linters (`eslint`) et vérifications de types (`tsc`).
+- **Git Integration** : Création automatique de branches temporaires (*worktrees*) et commits atomiques conventionnels.
 
 ```bash
-# Exemple d'interaction avec Claude Code dans le terminal
-$ claude "Ajoute la validation Zod sur le formulaire d'inscription et écris les tests unitaires"
+# Exemple de commande en langage naturel déléguée à l'agent
+$ claude "Migre la table User vers le nouveau schéma Prisma et adapte tous les tests unitaires cassés"
 ```
 
 ## 2. Le Standard MCP (Model Context Protocol)
 
-Le **Model Context Protocol (MCP)** est un protocole ouvert permettant d'interconnecter les agents IA avec des sources de données externes et des outils d'infrastructure.
+Avant le MCP, chaque outil d'IA devait créer ses propres connecteurs propriétaires pour accéder à une base PostgreSQL, un dépôt GitHub ou un bucket AWS.
+
+Créé par Anthropic et publié en open source, le **Model Context Protocol (MCP)** est à l'IA ce que **LSP (Language Server Protocol)** a été aux éditeurs de code : un standard de communication universel fondé sur **JSON-RPC 2.0**.
+
+```txt
+┌─────────────────────────────────────────────────────────────┐
+│                       Client MCP (Hôte)                     │
+│         (Claude Code, Claude Desktop, Antigravity IDE)      │
+└──────────────────────────────┬──────────────────────────────┘
+                               │ JSON-RPC 2.0 (stdio ou SSE)
+        ┌──────────────────────┼──────────────────────┐
+        ▼                      ▼                      ▼
+┌──────────────┐       ┌──────────────┐       ┌──────────────┐
+│ Serveur MCP  │       │ Serveur MCP  │       │ Serveur MCP  │
+│   Postgres   │       │    GitHub    │       │ Documentation│
+│ (Tables/SQL) │       │ (PRs/Issues) │       │  Interne     │
+└──────────────┘       └──────────────┘       └──────────────┘
+```
+
+Le protocole expose 3 primitives fondamentales :
+1. **Tools (Outils)** : Fonctions exécutables par le LLM (ex: `execute_sql_query`, `deploy_service`).
+2. **Resources (Ressources)** : Données passives en lecture seule (ex: schémas de base de données, fichiers de logs).
+3. **Prompts** : Modèles d'invites pré-paramétrés pour guider le modèle sur des tâches récurrentes.
+
+## 3. Construire un Serveur MCP Personnalisé en TypeScript
+
+Pour comprendre la puissance du MCP, créons un serveur MCP personnalisé qui permet à Claude Code de surveiller les métriques système (mémoire vive et espace disque) d'un serveur de production :
+
+```typescript
+// server-mcp-systeme.ts
+import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import {
+  CallToolRequestSchema,
+  ListToolsRequestSchema,
+} from '@modelcontextprotocol/sdk/types.js';
+import * as os from 'os';
+
+// 1. Initialisation de l'instance serveur MCP
+const server = new Server(
+  { name: 'serveur-metriques-systeme', version: '1.0.0' },
+  { capabilities: { tools: {} } }
+);
+
+// 2. Déclaration de l'outil exposé au modèle de langage
+server.setRequestHandler(ListToolsRequestSchema, async () => {
+  return {
+    tools: [
+      {
+        name: 'obtenir_statistiques_memoire',
+        description: 'Renvoie la mémoire vive totale, libre et le pourcentage d\'utilisation du serveur.',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+        },
+      },
+    ],
+  };
+});
+
+// 3. Implémentation de la logique d'exécution de l'outil
+server.setRequestHandler(CallToolRequestSchema, async (request) => {
+  if (request.params.name === 'obtenir_statistiques_memoire') {
+    const totalMem = os.totalmem();
+    const freeMem = os.freemem();
+    const usedMem = totalMem - freeMem;
+    const usagePercent = ((usedMem / totalMem) * 100).toFixed(2);
+
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify(
+            {
+              totalMo: Math.round(totalMem / 1024 / 1024),
+              libreMo: Math.round(freeMem / 1024 / 1024),
+              utiliseMo: Math.round(usedMem / 1024 / 1024),
+              pourcentageUtilise: `${usagePercent}%`,
+            },
+            null,
+            2
+          ),
+        },
+      ],
+    };
+  }
+
+  throw new Error(`Outil inconnu : ${request.params.name}`);
+});
+
+// 4. Lancement du serveur sur l'entrée/sortie standard (stdio)
+async function main() {
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
+  console.error('Serveur MCP de métriques système démarré sur stdio.');
+}
+
+main().catch(console.error);
+```
+
+### Configuration dans l'environnement
+Pour connecter ce serveur à votre agent, il suffit de l'ajouter dans votre fichier de configuration JSON (par exemple `claude_desktop_config.json` ou `.mcp.json`) :
+
+```json
+{
+  "mcpServers": {
+    "system-monitor": {
+      "command": "npx",
+      "args": ["tsx", "/chemin/vers/server-mcp-systeme.ts"]
+    }
+  }
+}
+```
+
+Dès cet instant, l'agent peut appeler nativement l'outil `obtenir_statistiques_memoire` pour diagnostiquer un incident en direct sans qu'aucun prompt spécifique ne soit nécessaire !
+
+## 4. Bonnes Pratiques pour Collaborer avec un Agent Développeur
+
+Travailler efficacement avec des agents autonomes nécessite une nouvelle discipline d'ingénierie :
+
+| Pratique | Pourquoi c'est crucial ? |
+| :--- | :--- |
+| **Avoir une suite de tests automatisée rapide** | L'agent s'auto-corrige en s'appuyant sur vos tests (`npm test`). Sans tests fiables, l'agent ne peut pas valider qu'il n'a rien cassé. |
+| **Typage strict TypeScript (`strict: true`)** | Le compilateur `tsc` sert de garde-fou immédiat : l'agent répare ses propres erreurs de typage avant de vous solliciter. |
+| **Demandes atomiques et ciblées** | Demandez une tâche précise à la fois plutôt que "Refais toute l'architecture de l'app". |
+| **Revue de diff systématique** | L'agent propose, l'ingénieur dispose. Inspectez toujours les `git diff` avant de fusionner. |
 
 <Note>
-Pensez au MCP comme à une API unifiée pour les modèles de langage (LLMs), leur permettant d'interagir avec GitHub, Postgres, Slack, AWS, ou des outils de recherche web sans code sur-mesure.
+**Sécurité en environnement sensible** : Configurez toujours votre CLI pour exiger une confirmation humaine explicite avant toute action destructive (suppression de fichiers, commandes `DROP TABLE`, déploiements en production).
 </Note>
-
-### Architecture d'un système MCP :
-
-| Composant | Rôle dans l'écosystème |
-| :--- | :--- |
-| **Hôte (Client MCP)** | L'environnement de l'agent (ex: Claude Code, Antigravity, Cursor). |
-| **Serveurs MCP** | Micro-services exposant des outils et ressources (ex: serveur MCP Postgres, serveur MCP Git). |
-| **Ressources & Outils** | Les actions réelles (ex: exécuter une requête SQL, lire la doc API, créer une PR). |
-
-## 3. Workflow de développement augmenté par les Agents
-
-Avec un agent autonome comme Claude Code, le workflow de développement évolue vers un rôle de **Pair-Programming** et de revue de code :
-
-1. **Définition de l'objectif** : Le développeur exprime la fonctionnalité ou le bugfix attendu.
-2. **Phase de recherche** : L'agent parcourt le code source pour identifier les composants impactés.
-3. **Planification & Exécution** : L'agent effectue la modification pas-à-pas et exécute les commandes de validation localement.
-4. **Vérification humaine** : Le développeur inspecte le diff, teste visuellement et valide le commit.
 
 ## Conclusion
 
-L'utilisation combinée d'agents CLI comme **Claude Code** et de protocoles extensibles comme le **MCP** démultiplie la productivité des développeurs. L'IA ne remplace pas l'ingéniosité humaine, mais elle prend en charge les tâches répétitives, le débogage de bas niveau et le câblage de code boilerplate.
+L'association d'outils CLI agentiques comme **Claude Code** et du standard ouvert **MCP** marque le passage de l'IA comme simple générateur de texte à l'IA comme collaborateur technique opérationnel. L'ingénieur logiciel ne disparaît pas : son rôle évolue d'artisan tapant chaque caractère vers celui d'architecte, de chef d'orchestre et de relecteur critique.

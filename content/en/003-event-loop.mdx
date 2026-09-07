@@ -1,139 +1,232 @@
 ---
 title: "Understanding the Event Loop, Call Stack and Queues in JavaScript"
-description: "A detailed guide on JavaScript's internal workings, including the Event Loop, Call Stack, Microtasks and Macrotasks."
+description: "A deep dive into the inner workings of the JavaScript Event Loop, V8 engine, and libuv: Call Stack, Microtasks, Macrotasks, rendering phases, and concurrency management."
 tag: JavaScript
 publishedAt: "2026-05-05"
 published: true
-time: 5 
+time: 10
 ---
 
+JavaScript is widely described as a **single-threaded non-blocking asynchronous** language. At first glance, this definition sounds paradoxical: how can a runtime engine with only one main execution thread process thousands of network requests, handle user interactions, render 60 FPS animations, and manage asynchronous I/O without freezing?
 
-JavaScript is a single-threaded asynchronous programming language, meaning it executes one task at a time. But how does it handle asynchronous operations like network calls, timers, or user events? The answer lies in the **Event Loop**, the **Call Stack**, and the **Queues**. In this article, we will explore these fundamental concepts that are at the heart of JavaScript's operation.
+The cornerstone of this architecture is the interplay between the JavaScript runtime engine (such as Google's **V8** in Chrome and Node.js), host environment APIs (Web APIs in the browser or **libuv** in Node.js), and most importantly: **the Event Loop**.
 
-## The Call Stack
+In this deep-dive guide, we will deconstruct every layer of this system with step-by-step execution traces and real-world production scenarios.
 
-The Call Stack is a LIFO (Last In, First Out) data structure that keeps track of executing functions. Every time a function is called, it is added to the top of the stack. When a function finishes, it is removed from the stack.
+## 1. Anatomy of the Execution Runtime
 
-```javascript
-function fonctionA() {
-  console.log('A');
-  fonctionB();
-  console.log('Back to A');
-}
+To understand the Event Loop, we must first examine the memory architecture of a JavaScript runtime:
 
-function fonctionB() {
-  console.log('B');
-}
-
-fonctionA();
-// Output: A, B, Back to A
+```txt
+┌──────────────────────────────────────────────────────────────┐
+│                    JavaScript Runtime (V8)                   │
+│                                                              │
+│  ┌──────────────────────────┐    ┌─────────────────────────┐ │
+│  │       Memory Heap        │    │       Call Stack        │ │
+│  │   (Dynamic allocation:   │    │    (LIFO: Synchronous   │ │
+│  │    objects, closures)    │    │    frame execution)     │ │
+│  └──────────────────────────┘    └─────────────────────────┘ │
+└──────────────────────────────┬───────────────────────────────┘
+                               │ Async invocation (e.g. fetch, setTimeout)
+                               ▼
+┌──────────────────────────────────────────────────────────────┐
+│             Host Environment (Web APIs / libuv)              │
+│       Background Worker Threads: Network, Timers, Disk I/O   │
+└──────────────────────────────┬───────────────────────────────┘
+                               │ Task completes (callback ready)
+                               ▼
+┌──────────────────────────────────────────────────────────────┐
+│                     Task Queues (Queues)                     │
+│                                                              │
+│  ┌────────────────────────────────────────────────────────┐  │
+│  │ Microtask Queue (Promises, queueMicrotask, MutationObs)│  │
+│  └────────────────────────────────────────────────────────┘  │
+│  ┌────────────────────────────────────────────────────────┐  │
+│  │ Macrotask Queue (setTimeout, setInterval, I/O, UI)     │  │
+│  └────────────────────────────────────────────────────────┘  │
+└──────────────────────────────┬───────────────────────────────┘
+                               │ Event Loop :
+                               │ Pushes to Call Stack when empty
+                               ▼
+                        [ Call Stack ]
 ```
 
-In this simple example:
-1. `fonctionA` is added to the Call Stack
-2. `console.log('A')` executes
-3. `fonctionB` is added to the Call Stack
-4. `console.log('B')` executes
-5. `fonctionB` is removed from the Call Stack
-6. `console.log('Back to A')` executes
-7. `fonctionA` is removed from the Call Stack
+### The Call Stack
+The Call Stack is a strict **LIFO** (*Last In, First Out*) data structure. Every time a function is invoked, a new stack frame (containing its parameters and local variables) is pushed onto the top of the stack. When the function returns, its frame is popped off.
+
+```typescript
+function calculateTax(price: number): number {
+  return price * 0.20;
+}
+
+function generateInvoice(item: string, price: number): void {
+  const tax = calculateTax(price);
+  console.log(`Item: ${item} | Total: ${price + tax}€`);
+}
+
+generateInvoice("Mechanical Keyboard", 150);
+```
+
+If a function recursively invokes itself without an exit condition, stack memory is depleted, triggering the well-known `RangeError: Maximum call stack size exceeded`.
+
+### The Memory Heap
+An unstructured memory space where objects, arrays, closures, and functions reside. The Garbage Collector (GC) periodically traverses this graph to reclaim memory from objects that are no longer reachable from the GC Roots.
+
+## 2. Microtasks vs Macrotasks: The Two Golden Rules
+
+A common misconception among developers is that all asynchronous callbacks are scheduled with the same priority. They are not: JavaScript implements two distinct queues governed by precise scheduling rules:
+
+| Criterion | Microtask Queue (Jobs) | Macrotask Queue (Tasks) |
+| :--- | :--- | :--- |
+| **Origin of tasks** | `Promise` (`.then`, `.catch`, `.finally`), `queueMicrotask()`, `MutationObserver` | `setTimeout`, `setInterval`, `setImmediate` (Node), Network I/O, DOM events |
+| **Execution priority** | **Immediate high priority**: Emptied completely as soon as the Call Stack is empty | **Standard priority**: Exactly one task executed per event loop tick |
+| **Rendering impact** | Blocks layout and paint updates until the queue is completely drained | Yields control back to the browser rendering engine between tasks |
 
 <Note>
-The Call Stack can cause "stack overflow" errors if it becomes too deep, for example with infinite recursion.
+**Golden Rule of the Event Loop**: Whenever the Call Stack empties, the Event Loop prioritizes the **Microtask Queue**, processing every queued microtask to completion (including newly scheduled microtasks) **before** touching the next macrotask or performing layout/paint operations.
 </Note>
 
-## The Queues: Microtask Queue and Macrotask Queue
+## 3. Step-by-Step Execution Trace: The Interview Classic
 
-JavaScript uses two types of queues to manage asynchronous tasks:
+Consider this classic scheduling question. In what exact order will statements print to the console?
 
-### Microtask Queue
-- High priority
-- Contains tasks like Promises (`.then()`, `.catch()`), `MutationObserver`, `queueMicrotask()`
-- Microtasks are executed after each Call Stack task, before the Event Loop moves to macrotasks
-
-### Macrotask Queue (or Task Queue)
-- Lower priority
-- Contains tasks like `setTimeout`, `setInterval`, I/O events, user events
-- Also called "Callback Queue"
-
-```javascript
-console.log('Start');
+```typescript
+console.log('1: Synchronous');
 
 setTimeout(() => {
-  console.log('Macrotask');
+  console.log('2: Macrotask (setTimeout 0)');
+  Promise.resolve().then(() => {
+    console.log('3: Microtask nested inside setTimeout');
+  });
 }, 0);
 
 Promise.resolve().then(() => {
-  console.log('Microtask');
+  console.log('4: Microtask 1');
+}).then(() => {
+  console.log('5: Microtask 2');
 });
 
-console.log('End');
-
-// Output: Start, End, Microtask, Macrotask
-```
-
-In this example:
-1. `console.log('Start')` executes
-2. `setTimeout` adds a macrotask to the Macrotask Queue
-3. `Promise.resolve().then()` adds a microtask to the Microtask Queue
-4. `console.log('End')` executes
-5. Call Stack is empty, Event Loop checks Microtasks
-6. The microtask executes: `console.log('Microtask')`
-7. Event Loop checks Macrotasks
-8. The macrotask executes: `console.log('Macrotask')`
-
-## The Event Loop
-
-The Event Loop is the mechanism that allows JavaScript to handle asynchrony. Here's how it works:
-
-1. **Synchronous execution**: Synchronous tasks are executed in the Call Stack
-2. **Microtask check**: After each synchronous task, the Event Loop completely empties the Microtask Queue
-3. **Macrotask check**: Once the Microtask Queue is empty, the Event Loop takes the first task from the Macrotask Queue and executes it
-4. **Repetition**: The cycle starts again
-
-```javascript
-console.log('1');
-
-setTimeout(() => {
-  console.log('2');
-  Promise.resolve().then(() => console.log('3'));
-}, 0);
-
-Promise.resolve().then(() => {
-  console.log('4');
-  setTimeout(() => console.log('5'), 0);
+queueMicrotask(() => {
+  console.log('6: Explicit microtask');
 });
 
-console.log('6');
-
-// Output: 1, 6, 4, 2, 3, 5
+console.log('7: Synchronous end');
 ```
 
-Let's analyze this more complex example:
-1. `console.log('1')` → Output: 1
-2. `setTimeout` adds a macrotask (2,3) to the Macrotask Queue
-3. `Promise.resolve().then()` adds a microtask (4,5) to the Microtask Queue
-4. `console.log('6')` → Output: 6
-5. Call Stack empty → Microtask execution: `console.log('4')`, then `setTimeout` adds (5) to Macrotask Queue → Output: 4
-6. Microtask Queue empty → First Macrotask execution: `console.log('2')`, then `Promise.resolve().then()` adds (3) to Microtask Queue → Output: 2
-7. Call Stack empty → Microtask execution: `console.log('3')` → Output: 3
-8. Microtask Queue empty → Next Macrotask execution: `console.log('5')` → Output: 5
+### Trace breakdown:
+1. `console.log('1: Synchronous')` runs immediately -> **Prints 1**.
+2. `setTimeout(..., 0)` registers a timer in Web APIs. Once 0ms elapses, its callback is enqueued in the **Macrotask Queue**.
+3. `Promise.resolve().then(...)` pushes `Microtask 1` into the **Microtask Queue**.
+4. `queueMicrotask(...)` pushes `Explicit microtask` into the **Microtask Queue**.
+5. `console.log('7: Synchronous end')` runs -> **Prints 7**.
+6. **Call Stack is now empty**. The Event Loop inspects the **Microtask Queue**:
+   - Executes `Microtask 1` -> **Prints 4**, resolving and scheduling `Microtask 2` in the queue.
+   - Executes `Explicit microtask` -> **Prints 6**.
+   - Finds `Microtask 2` in the queue and executes it -> **Prints 5**.
+7. Microtask Queue is completely drained.
+8. Event Loop advances to the **Macrotask Queue**:
+   - Dequeues and executes the timer callback -> **Prints 2**.
+   - Enqueues a nested promise in the Microtask Queue.
+   - Finishes current macrotask, then drains the Microtask Queue -> **Prints 3**.
 
-<Note>
-The Event Loop ensures that microtasks are always processed before macrotasks, which explains why Promises are resolved before setTimeout with a 0ms delay.
-</Note>
+**Final Console Output:**
+```txt
+1: Synchronous
+7: Synchronous end
+4: Microtask 1
+6: Explicit microtask
+5: Microtask 2
+2: Macrotask (setTimeout 0)
+3: Microtask nested inside setTimeout
+```
 
-## Practical Implications
+## 4. Browser vs Node.js: Under the Hood Differences
 
-Understanding these mechanisms is crucial for writing performant JavaScript code and avoiding common pitfalls:
+While Promise semantics are strictly defined by the ECMAScript specification, the event loop implementation varies across execution environments:
 
-- **Avoid blocking operations** in the Call Stack
-- **Use Microtasks** (Promises) for priority operations
-- **Understand the execution order** to debug asynchronous issues
-- **Use Web APIs** (setTimeout, fetch, etc.) for non-blocking operations
+### In the Browser: The Rendering Pipeline
+In browsers, the Event Loop is synchronized with display refresh rates (typically 60Hz or 120Hz, representing a ~16.6ms or ~8.3ms window per frame).
+- Once all microtasks are resolved, the browser determines if a frame update is required.
+- It triggers callbacks registered with `requestAnimationFrame()`, followed by **Recalculate Style**, **Layout** (geometric calculations), and **Paint** (pixel rasterization).
+- If synchronous code or infinite microtask chains hold the Call Stack for longer than 16ms, the browser cannot render a frame, resulting in noticeable UI stutter (*jank*).
 
-These concepts are not only important for client-side JavaScript, but also for server-side Node.js, where the Event Loop handles HTTP requests, file access, and other I/O operations.
+### In Node.js: libuv Phases
+Node.js has neither a DOM nor a screen. Its event loop is driven by the C library **libuv** and progresses through dedicated circular phases:
 
-<Youtube id="8aGhZQkoFbQ" />
+```txt
+┌────────────────────────────────────────┐
+│               timers                   │ ◄── Executes setTimeout and setInterval callbacks
+└──────────────────┬─────────────────────┘
+                   ▼
+┌────────────────────────────────────────┐
+│            pending callbacks           │ ◄── Deferred system I/O errors
+└──────────────────┬─────────────────────┘
+                   ▼
+┌────────────────────────────────────────┐
+│             idle, prepare              │ ◄── Internal Node.js runtime operations
+└──────────────────┬─────────────────────┘
+                   ▼
+┌────────────────────────────────────────┐
+│                 poll                   │ ◄── Retrieves new I/O events (network, filesystem)
+└──────────────────┬─────────────────────┘
+                   ▼
+┌────────────────────────────────────────┐
+│                check                   │ ◄── Executes setImmediate() callbacks
+└──────────────────┬─────────────────────┘
+                   ▼
+┌────────────────────────────────────────┐
+│            close callbacks             │ ◄── Socket close events (socket.on('close'))
+└────────────────────────────────────────┘
+```
 
-To deepen your knowledge, I recommend consulting the ECMAScript specification and experimenting with code examples in your development console.
+Node.js also introduces `process.nextTick()`. Callbacks passed to `nextTick` are managed in a separate priority queue (`nextTickQueue`) that executes **before** promise microtasks on every phase boundary transition!
+
+## 5. Avoiding Main-Thread Starvation
+
+Because JavaScript shares a single thread between business logic and UI responsiveness, heavy synchronous computation freezes the entire runtime.
+
+### The Starvation Trap
+Recursively scheduling microtasks prevents the Event Loop from ever reaching paint cycles or macrotasks:
+
+```typescript
+// ❌ ANTI-PATTERN: Completely starves the thread
+function infiniteMicrotasks() {
+  Promise.resolve().then(infiniteMicrotasks);
+}
+```
+
+### Solution 1: Cooperative Time-Slicing
+When processing large arrays or heavy data sets without freezing user interactions, break up the work into chunks and yield control back to the Event Loop:
+
+```typescript
+async function processLargeDataSetInBatches<T>(
+  items: T[],
+  batchSize: number,
+  handler: (item: T) => void
+): Promise<void> {
+  for (let i = 0; i < items.length; i += batchSize) {
+    const batch = items.slice(i, i + batchSize);
+    batch.forEach(handler);
+
+    // Yield control back to the Event Loop for paint & user input
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+}
+```
+
+### Solution 2: Offloading to Web Workers / Worker Threads
+For CPU-bound tasks like cryptography, image transformations, or heavy JSON parsing, offload execution to a separate OS thread:
+
+```typescript
+// main.ts
+const worker = new Worker(new URL('./compute-worker.ts', import.meta.url));
+
+worker.postMessage({ payload: heavyDataSet });
+worker.onmessage = (event) => {
+  console.log('Calculated off the main thread without frame drops:', event.data);
+};
+```
+
+## Conclusion
+
+The JavaScript Event Loop is not an opaque black box: it is a deterministic scheduler with strict priorities. Understanding the distinction between the synchronous Call Stack, the high-priority Microtask Queue, and the Macrotask Queue gives you the tools to prevent UI lag, diagnose subtle race conditions, and build high-throughput Node.js services.

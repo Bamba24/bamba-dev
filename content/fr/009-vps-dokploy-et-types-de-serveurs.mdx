@@ -1,60 +1,234 @@
 ---
 title: "VPS, Serveurs Mutualisés, Dédiés et Dokploy : Comment Héberger ses Applications Web"
-description: "Guide pratique de l'hébergement web : du serveur mutualisé classique au VPS auto-hébergé avec Dokploy et Docker."
+description: "Guide complet de l'hébergement web moderne : comparatif des architectures serveur, sécurisation pas-à-pas d'un VPS Ubuntu, déploiement avec Dokploy et docker-compose de production."
 tag: DevOps
 publishedAt: "2026-06-25"
 published: true
-time: 7
+time: 12
 ---
 
-Lorsqu'un projet web quitte le stade du développement local, choisir le bon mode d'hébergement devient une étape cruciale. Entre les **serveurs mutualisés**, les **VPS (Virtual Private Servers)**, les **serveurs dédiés** et les solutions d'orchestration modernes comme **Dokploy**, l'éventail des choix est vaste.
+Pendant longtemps, le choix d'hébergement web était binaire : d'un côté, le serveur mutualisé cPanel bon marché mais rigide et bridé ; de l'autre, les plateformes PaaS modernes (Vercel, Render) confortables mais dont la facture devient vite astronomique à mesure que le trafic augmente.
 
-Dans cet article, nous allons comparer les types d'hébergement et voir comment créer une alternative PaaS auto-hébergée économique avec Dokploy.
+Aujourd'hui, l'émergence des plateformes PaaS auto-hébergées open-source comme **Dokploy** (ou Coolify) change radicalement la donne : vous bénéficiez désormais de l'expérience développeur de Vercel (*git push*, SSL automatique, prévisualisations) sur un **VPS à 5€ ou 10€ par mois**, avec un contrôle total sur vos données.
 
-## 1. Les différents types de serveurs d'hébergement
+Dans ce guide d'ingénierie, nous comparons les types de serveurs, nous sécurisons un VPS Ubuntu de A à Z, et nous déployons une architecture multi-conteneurs de production.
 
-### Serveur Mutualisé (Shared Hosting)
-Plusieurs sites web se partagent les ressources (CPU, RAM) d'un même serveur physique.
-- **Utilisation classique** : Sites vitrines WordPress, petits blogs PHP.
-- **Limites** : Pas d'accès root (SSH), pas de support Docker/Node.js avancé, performances dépendantes des voisins.
+## 1. Comparatif des Types de Serveurs
 
-### VPS (Virtual Private Server)
-Un serveur virtuel dédié découpé sur une machine physique grâce à la virtualisation (KVM).
-- **Utilisation** : Applications Node.js, Python, bases de données, conteneurs Docker.
-- **Avantages** : Accès root SSH complet, ressources garanties, coûts mensuels fixes très bas (ex: 3€ à 10€/mois).
+Comprendre la couche matérielle sous-jacente est indispensable pour dimensionner correctement vos infrastructures :
 
-### Serveur Dédié (Bare Metal)
-Une machine physique entière réservée exclusivement à votre entreprise.
-- **Utilisation** : Infrastructures à fort trafic, gros clusters de bases de données.
-- **Avantages** : Performances maximales, aucune couche de virtualisation intermédiaire.
-
-## 2. Tableau comparatif des serveurs
-
-| Type | Contrôle SSH | Performance | Isolation | Coût relatif |
+| Type de Serveur | Isolation | Performance | Coût Moyen | Cas d'Usage Idéal |
 | :--- | :--- | :--- | :--- | :--- |
-| **Mutualisé** | ❌ Non | Faible à Moyenne | Partagée | € |
-| **VPS** | ✅ Oui (Root) | Élevée | Virtuelle | €€ |
-| **Dédié** | ✅ Oui (Root) | Maximale | Physique | €€€ |
+| **Hébergement Mutualisé** | **Aucune** (OS partagé entre des centaines de clients) | Très faible et instable (effet "mauvais voisin") | 3€ - 7€ / mois | Sites vitrines WordPress statiques à très faible trafic. |
+| **VPS (Virtual Private Server)** | **KVM / Hyperviseur** (vCPU et RAM dédiés sur un hôte physique) | Excellente, stable et prévisible | 5€ - 30€ / mois | **Le standard pour 90% des applications web et APIs.** |
+| **Serveur Dédié (Bare Metal)** | **Physique totale** (vous louez la machine entière) | Maximale (accès direct au processeur et aux SSDs NVMe) | 50€ - 300€ / mois | Bases de données massives (> 1 To), rendu vidéo, Big Data. |
+| **PaaS Managé (Vercel / Render)** | Conteneurs éphémères serverless | Élevée mais facturation stricte à l'usage | 20€ - 500€+ / mois | Prototypes rapides et équipes sans compétences DevOps. |
 
-## 3. Qu'est-ce que Dokploy ?
+## 2. Guide de Sécurisation d'un VPS Ubuntu Vierge
 
-**Dokploy** est un PaaS open-source auto-hébergé (alternative gratuite à Vercel ou Heroku). Installé sur un simple **VPS Linux** (Debian/Ubuntu), Dokploy vous offre une interface web moderne pour déployer vos applications web, bases de données et services Docker en quelques clics.
+Louer un VPS chez Hetzner, DigitalOcean ou OVH prend 60 secondes. Mais laisser un serveur Ubuntu avec son mot de passe root par défaut sur le port 22 vous expose à des milliers d'attaques par force brute automatisées chaque jour.
+
+Voici la checklist de sécurisation indispensable avant tout déploiement :
+
+### 1. Création d'un utilisateur non-root avec privilèges `sudo`
+```bash
+# Connectez-vous une première fois en tant que root
+ssh root@IP_DU_SERVEUR
+
+# Créez votre utilisateur dédié
+adduser deployer
+
+# Accordez-lui les droits sudo
+usermod -aG sudo deployer
+```
+
+### 2. Configuration d'une clé SSH robuste (Ed25519)
+Sur votre machine locale, générez une clé moderne puis copiez-la sur le VPS :
+```bash
+# Sur votre machine locale
+ssh-keygen -t ed25519 -C "deployer@mon-vps"
+ssh-copy-id -i ~/.ssh/id_ed25519.pub deployer@IP_DU_SERVEUR
+```
+
+### 3. Verrouillage du serveur SSH (`/etc/ssh/sshd_config`)
+Éditez le fichier de configuration SSH pour bannir les mots de passe et l'utilisateur root :
+```bash
+sudo nano /etc/ssh/sshd_config
+```
+Modifiez ces directives clés :
+```txt
+PermitRootLogin no
+PasswordAuthentication no
+PubkeyAuthentication yes
+```
+Redémarrez le service SSH :
+```bash
+sudo systemctl restart ssh
+```
+
+### 4. Configuration du pare-feu `ufw`
+Ne laissez ouverts que les ports strictement nécessaires :
+```bash
+# Autorise SSH, HTTP et HTTPS
+sudo ufw default deny incoming
+sudo ufw default allow outgoing
+sudo ufw allow ssh
+sudo ufw allow http
+sudo ufw allow https
+
+# Active le pare-feu
+sudo ufw enable
+```
+
+### 5. Protection anti-bruteforce avec Fail2ban
+```bash
+sudo apt update && sudo apt install -y fail2ban
+sudo systemctl enable fail2ban --now
+```
+
+## 3. Qu'est-ce que Dokploy et Pourquoi est-ce Révolutionnaire ?
+
+**Dokploy** est un gestionnaire de déploiement auto-hébergé open-source conçu pour transformer n'importe quel VPS en un PaaS complet équivalent à Heroku ou Vercel.
+
+```txt
+┌─────────────────────────────────────────────────────────────┐
+│                       Votre VPS Ubuntu                      │
+│                                                             │
+│   ┌─────────────────────────────────────────────────────┐   │
+│   │               Traefik Reverse Proxy                 │   │
+│   │   (SSL Let's Encrypt automatique, Routage HTTP/2)   │   │
+│   └───────────┬─────────────────────┬───────────────────┘   │
+│               │                     │                       │
+│               ▼                     ▼                       │
+│      ┌─────────────────┐   ┌─────────────────┐              │
+│      │   Frontend App  │   │     API REST    │              │
+│      │  (Next.js:3000) │   │  (Node.js:4000) │              │
+│      └────────┬────────┘   └────────┬────────┘              │
+│               │                     │                       │
+│               └───────────┬─────────┘                       │
+│                           ▼                                 │
+│                  ┌─────────────────┐                        │
+│                  │  PostgreSQL DB  │                        │
+│                  │ (Volume persistant)                      │
+│                  └─────────────────┘                        │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Fonctionnalités Clés de Dokploy :
+- **Reverse Proxy Traefik intégré** : Génération et renouvellement automatique des certificats SSL Let's Encrypt pour tous vos domaines et sous-domaines.
+- **Déploiements Git Automatisés** : Déclenche une compilation Docker à chaque `git push` via des webhooks GitHub/GitLab.
+- **Bases de Données en 1 Clic** : PostgreSQL, MySQL, Redis, MongoDB avec volumes persistants et sauvegardes automatiques.
+- **Tableau de Bord Moderne** : Surveillance en temps réel de l'utilisation CPU, RAM, disques et accès direct aux logs des conteneurs.
+
+### Installation de Dokploy en une commande :
+```bash
+curl -sSL https://dokploy.com/install.sh | sh
+```
+Après 2 minutes, votre panneau d'administration est accessible sur `http://IP_DU_SERVEUR:3000`.
+
+## 4. Architecture de Production : `docker-compose.yml`
+
+Pour déployer une application complète (Frontend Next.js + API + Base PostgreSQL + Cache Redis), voici un modèle de configuration prêt pour la production avec gestion des réseaux internes étanches et des volumes persistants :
+
+```yaml
+version: '3.8'
+
+services:
+  # 1. Base de données PostgreSQL
+  postgres:
+    image: postgres:16-alpine
+    container_name: prod_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-bambadev}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME:-production_db}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - backend_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-bambadev}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # 2. Cache Redis pour sessions et rate-limiting
+  redis:
+    image: redis:7-alpine
+    container_name: prod_redis
+    restart: unless-stopped
+    command: redis-server --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - redis_data:/data
+    networks:
+      - backend_network
+
+  # 3. Application Web Next.js (Frontend & API)
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: prod_webapp
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    environment:
+      DATABASE_URL: postgres://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+      NODE_ENV: production
+      PORT: 3000
+    networks:
+      - backend_network
+      - traefik_public
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.web.rule=Host(`mon-domaine.com`)"
+      - "traefik.http.routers.web.entrypoints=websecure"
+      - "traefik.http.routers.web.tls.certresolver=letsencrypt"
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  backend_network:
+    internal: true # Réseau fermé non accessible depuis Internet
+  traefik_public:
+    external: true # Réseau exposé au reverse proxy
+```
 
 <Note>
-Avec Dokploy sur un VPS à 5€/mois (Hetzner, OVH, Netcup), vous pouvez héberger des dizaines d'applications Next.js, Node.js, Postgres et Redis avec SSL automatique via Traefik.
+**Remarquez la directive `internal: true` sur le réseau `backend_network`** : la base de données PostgreSQL et le cache Redis ne sont même pas exposés sur Internet, rendant toute intrusion externe par scan de port totalement impossible.
 </Note>
 
-### Fonctionnalités de Dokploy :
-- **Déploiement Git** : Déploiement automatique dès un `git push` sur GitHub ou GitLab.
-- **Bases de données managées** : Instanciation en 1 clic de PostgreSQL, MySQL, MongoDB, Redis.
-- **SSL Automatique** : Génération et renouvellement des certificats Let's Encrypt.
-- **Monitoring & Logs** : Visualisation en direct des logs de conteneurs et de l'utilisation mémoire/CPU.
+## 5. Stratégie de Sauvegardes et Monitoring
+
+Un serveur sans sauvegardes automatiques est une bombe à retardement.
+
+### Sauvegarde Automatisée vers un Bucket S3
+Grâce à Dokploy ou à un simple cronjob, programmez un export nocturne chiffré de votre base vers AWS S3 ou Cloudflare R2 :
 
 ```bash
-# Commande d'installation de Dokploy sur un VPS Ubuntu vierge
-curl -sSL https://dokploy.com/install.sh | sh
+#!/bin/bash
+# script-backup.sh
+DATE=$(date +%Y-%m-%d_%H%M%S)
+BACKUP_DIR="/tmp/backups"
+mkdir -p $BACKUP_DIR
+
+# Dump PostgreSQL
+docker exec prod_postgres pg_dump -U bambadev production_db | gzip > $BACKUP_DIR/db_$DATE.sql.gz
+
+# Envoi vers Cloudflare R2 via AWS CLI (compatible S3)
+aws s3 cp $BACKUP_DIR/db_$DATE.sql.gz s3://mon-bucket-backups/database/
+
+# Nettoyage local
+rm -rf $BACKUP_DIR
 ```
 
 ## Conclusion
 
-Pour les développeurs et startups modernes, la combinaison d'un **VPS performant** et d'un outil d'orchestration comme **Dokploy** offre le meilleur des deux mondes : la simplicité d'utilisation de Vercel sans les limites de coûts et avec une maîtrise totale de vos données.
+L'hébergement web a trouvé son équilibre parfait : vous n'avez plus à choisir entre la liberté totale d'un serveur Linux et la simplicité magique des plateformes cloud. En combinant un **VPS fiable et abordable**, une sécurisation rigoureuse (SSH, UFW, Fail2ban) et un orchestrateur moderne comme **Dokploy**, vous divisez vos coûts par dix tout en conservant une expérience de déploiement de premier plan.

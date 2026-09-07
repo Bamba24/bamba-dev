@@ -1,124 +1,235 @@
 ---
-title: "Guide complet de NestJS : Architecture Modulaire, Décorateurs et Injection de Dépendances"
-description: "Découvrez comment construire des applications Node.js entreprise robustes et évolutives grâce aux concepts clés de NestJS."
+title: "Guide d'Architecture NestJS : Modules, Injection de Dépendances et Request Lifecycle"
+description: "Construire des backends Node.js robustes et scalables avec NestJS : architecture modulaire, inversion de contrôle (IoC), cycle de vie d'une requête (Guards, Interceptors, Pipes) et custom decorators."
 tag: NestJS
 publishedAt: "2026-06-10"
 published: true
-time: 7
+time: 12
 ---
 
-Lorsqu'il s'agit de créer des applications côté serveur complexes avec Node.js, **NestJS** s'est imposé comme le framework TypeScript de référence. Directement inspiré par la structure et la philosophie d'Angular, NestJS offre une architecture modulaire stricte, fortement typée et hautement maintenable.
+Lorsqu'une application Node.js commence à dépasser quelques milliers de lignes de code, le modèle "non-opinioné" de bibliothèques comme Express ou Fastify montre ses limites : sans conventions strictes, chaque développeur organise les dossiers, les services et la gestion d'erreurs à sa façon, menant à une dette technique colossale.
 
-Dans cet article, nous allons passer en revue les pylônes de l'architecture NestJS : les **Modules**, les **Contrôleurs**, les **Services (Providers)** et l'**Injection de dépendances**.
+**NestJS** résout ce défi en transposant les principes d'ingénierie logicielle les plus éprouvés du monde objet (Inversion de Contrôle, Injection de Dépendances, Architecture Modulaire) au monde TypeScript.
 
-## 1. L'Architecture Modulaire
+Dans ce guide complet, nous allons explorer l'architecture interne de NestJS, le cycle de vie précis d'une requête HTTP, et comment structurer une API d'entreprise testable et hautement maintenable.
 
-Dans NestJS, tout s'organise sous forme de **Modules**. Un module est une classe annotée avec le décorateur `@Module()` qui fournit les métadonnées nécessaires à Nest pour organiser la structure de l'application.
+## 1. Le Conteneur IoC et l'Injection de Dépendances
 
-```typescript
-// user.module.ts
-import { Module } from '@nestjs/common';
-import { UserController } from './user.controller';
-import { UserService } from './user.service';
+Au cœur de NestJS se trouve un conteneur d'**Inversion de Contrôle (IoC)**. Au lieu que vos contrôleurs instancient eux-mêmes leurs dépendances via des mots-clés `new Service()`, c'est le runtime NestJS qui se charge d'instancier, de résoudre et d'injecter les services nécessaires.
 
-@Module({
-  controllers: [UserController],
-  providers: [UserService],
-  exports: [UserService], // Permet d'exporter le service pour d'autres modules
-})
-export class UserModule {}
+```txt
+┌─────────────────────────────────────────────────────────────┐
+│                    Conteneur IoC (NestJS)                   │
+│                                                             │
+│   1. Lit les métadonnées (@Injectable(), @Module())         │
+│   2. Instancie les dépendances dans le bon ordre            │
+│   3. Injecte les singletons dans les contrôleurs            │
+│                                                             │
+│       ┌──────────────────┐        ┌──────────────────┐      │
+│       │   PrismaService  │ ─────► │   UsersService   │      │
+│       └──────────────────┘        └─────────┬────────┘      │
+│                                             │               │
+│                                             ▼               │
+│                                   ┌──────────────────┐      │
+│                                   │  UsersController │      │
+│                                   └──────────────────┘      │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-Chaque fonctionnalité principale de votre application (Utilisateurs, Auth, Paiements) possède son propre module, le tout étant importé dans le module racine `AppModule`.
-
-## 2. Les Contrôleurs (Controllers)
-
-Les contrôleurs sont responsables du traitement des requêtes HTTP entrantes et du renvoi des réponses au client. Ils utilisent des décorateurs élégants pour mapper les routes HTTP (`@Get()`, `@Post()`, `@Put()`, `@Delete()`).
+### Anatomie d'un Provider Typé
+Tout service injectable doit être décoré avec `@Injectable()` :
 
 ```typescript
-// user.controller.ts
-import { Controller, Get, Post, Body, Param, ParseIntPipe } from '@nestjs/common';
-import { UserService } from './user.service';
+// users.service.ts
+import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
 
-@Controller('users')
-export class UserController {
-  constructor(private readonly userService: UserService) {}
-
-  @Get()
-  async findAll() {
-    return this.userService.findAll();
-  }
-
-  @Get(':id')
-  async findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.userService.findOne(id);
-  }
-
-  @Post()
-  async create(@Body() createUserDto: CreateUserDto) {
-    return this.userService.create(createUserDto);
-  }
-}
-```
-
-<Note>
-Remarquez l'utilisation de `ParseIntPipe` : les Pipes dans NestJS permettent de valider et de transformer automatiquement les paramètres de requêtes avant qu'ils n'atteignent le contrôleur.
-</Note>
-
-## 3. Les Services et l'Injection de Dépendances (DI)
-
-Les contrôleurs ne doivent gérer que les requêtes HTTP. Toute la logique métier, l'accès à la base de données et le calcul des règles applicatives doivent être encapsulés dans des **Services (Providers)** annotés avec `@Injectable()`.
-
-```typescript
-// user.service.ts
-import { Injectable, NotFoundException } from '@nestjs/common';
-
-export interface User {
-  id: number;
-  name: string;
-  email: string;
-}
-
 @Injectable()
-export class UserService {
-  private users: User[] = [];
+export class UsersService {
+  // Injection automatique par le constructeur
+  constructor(private readonly prisma: PrismaService) {}
 
-  async findAll(): Promise<User[]> {
-    return this.users;
-  }
-
-  async findOne(id: number): Promise<User> {
-    const user = this.users.find((u) => u.id === id);
+  async findById(id: string) {
+    const user = await this.prisma.user.findUnique({ where: { id } });
     if (!user) {
-      throw new NotFoundException(`Utilisateur avec l'ID ${id} non trouvé`);
+      throw new NotFoundException(`Utilisateur introuvable avec l'ID ${id}`);
     }
     return user;
   }
 
-  async create(userDto: Omit<User, 'id'>): Promise<User> {
-    const newUser = { id: Date.now(), ...userDto };
-    this.users.push(newUser);
-    return newUser;
+  async create(dto: CreateUserDto) {
+    const existe = await this.prisma.user.findUnique({ where: { email: dto.email } });
+    if (existe) {
+      throw new ConflictException('Un compte existe déjà avec cette adresse email.');
+    }
+    return this.prisma.user.create({ data: dto });
   }
 }
 ```
 
-NestJS gère automatiquement le cycle de vie et l'instanciation du `UserService` grâce à son conteneur d'**Injection de Dépendances (IoC Container)**.
+## 2. Le Cycle de Vie d'une Requête HTTP (Request Lifecycle)
 
-## 4. Comparatif de la chaîne d'exécution NestJS
+L'une des plus grandes forces de NestJS est son pipeline de traitement séquentiel et prévisible. Chaque requête entrante traverse une série de filtres spécialisés avant d'atteindre votre code métier :
 
-Voici le parcours d'une requête HTTP dans NestJS :
+```txt
+Requête HTTP Entrante
+        │
+        ▼
+   [ Middlewares ]          ◄── Parsing brut, CORS, logging (ex: morgan)
+        │
+        ▼
+     [ Guards ]             ◄── Authentification, vérification des rôles (AuthGuard)
+        │
+        ▼
+ [ Interceptors (pre) ]     ◄── Démarrage de chronomètres, logging de route
+        │
+        ▼
+      [ Pipes ]             ◄── Validation des données et transformation (Zod, class-validator)
+        │
+        ▼
+[ Route Handler (Métier) ]  ◄── Votre méthode de contrôleur
+        │
+        ▼
+ [ Interceptors (post) ]    ◄── Transformation du payload de sortie (ex: wrapper { data: ... })
+        │
+        ▼
+ [ Exception Filters ]      ◄── Capture des exceptions et formatage JSON unifié
+        │
+        ▼
+Réponse HTTP Envoyée au Client
+```
 
-| Étape | Composant NestJS | Rôle |
-| :--- | :--- | :--- |
-| 1 | **Middlewares** | Intercepte les requêtes avant le routeur (ex: logger, CORS). |
-| 2 | **Guards** | Gère l'authentification et l'autorisation (ex: JWT Guard). |
-| 3 | **Interceptors** | Transforme ou décore les requêtes/réponses (ex: caching, formatting). |
-| 4 | **Pipes** | Valide et transforme les DTOs/paramètres. |
-| 5 | **Controller** | Exécute la méthode de route et fait appel au Service. |
-| 6 | **Exception Filters** | Attrape et formate les erreurs renvoyées au client. |
+### 1. Les Guards : Sécuriser les Routes
+Un Guard implémente l'interface `CanActivate` et détermine si une requête a le droit de poursuivre son exécution :
+
+```typescript
+// auth.guard.ts
+import { Injectable, CanActivate, ExecutionContext, UnauthorizedException } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+
+@Injectable()
+export class JwtAuthGuard implements CanActivate {
+  constructor(private readonly jwtService: JwtService) {}
+
+  canActivate(context: ExecutionContext): boolean {
+    const request = context.switchToHttp().getRequest();
+    const token = this.extractTokenFromHeader(request);
+
+    if (!token) {
+      throw new UnauthorizedException('Jeton d\'authentification manquant.');
+    }
+
+    try {
+      const payload = this.jwtService.verify(token);
+      request.user = payload; // Attache l'utilisateur à la requête
+      return true;
+    } catch {
+      throw new UnauthorizedException('Jeton invalide ou expiré.');
+    }
+  }
+
+  private extractTokenFromHeader(request: any): string | undefined {
+    const [type, token] = request.headers.authorization?.split(' ') ?? [];
+    return type === 'Bearer' ? token : undefined;
+  }
+}
+```
+
+### 2. Les Pipes : Validation Stricte des DTOs
+Ne laissez jamais entrer de données non validées dans votre base de données. En couplant un DTO avec `class-validator` et un `ValidationPipe`, NestJS rejette automatiquement les payloads malveillants :
+
+```typescript
+// dto/create-user.dto.ts
+import { IsEmail, IsString, MinLength, MaxLength } from 'class-validator';
+
+export class CreateUserDto {
+  @IsEmail({}, { message: 'L\'email fourni n\'est pas valide.' })
+  email!: string;
+
+  @IsString()
+  @MinLength(8, { message: 'Le mot de passe doit comporter au moins 8 caractères.' })
+  @MaxLength(64)
+  motDePasse!: string;
+
+  @IsString()
+  @MinLength(2)
+  nom!: string;
+}
+```
+
+### 3. Créer un Custom Decorator Ergonomique
+Au lieu d'écrire `req.user` dans chaque contrôleur, créez un décorateur personnalisé réutilisable et fortement typé :
+
+```typescript
+// decorators/current-user.decorator.ts
+import { createParamDecorator, ExecutionContext } from '@nestjs/common';
+
+export const CurrentUser = createParamDecorator(
+  (data: string | undefined, ctx: ExecutionContext) => {
+    const request = ctx.switchToHttp().getRequest();
+    const user = request.user;
+
+    return data ? user?.[data] : user;
+  }
+);
+```
+
+Et utilisez-le directement dans votre contrôleur :
+
+```typescript
+@Get('me')
+@UseGuards(JwtAuthGuard)
+obtenirMonProfil(@CurrentUser() user: UserPayload, @CurrentUser('email') email: string) {
+  return { message: `Bienvenue ${email}`, user };
+}
+```
+
+## 3. Comprendre les Scopes d'Injection et Performances
+
+Par défaut, tous les providers dans NestJS sont des **Singletons**. Une unique instance est créée au démarrage de l'application et partagée entre toutes les requêtes.
+
+NestJS supporte trois niveaux de portée (*Scopes*) :
+
+| Scope | Cycle de Vie | Impact sur les Performances | Quand l'utiliser ? |
+| :--- | :--- | :--- | :--- |
+| **`DEFAULT` (Singleton)** | Créé une fois au bootstrap du serveur | **Performances optimales** (aucune allocation mémoire par requête) | 99% des cas (Services, Clients de bases de données, Utilitaires). |
+| **`REQUEST`** | Une nouvelle instance est créée pour **chaque** requête HTTP | **Coût mémoire élevé** : ralenti le serveur sous fort trafic | Obligatoire uniquement pour du multi-tenant avec contexte dynamique par requête. |
+| **`TRANSIENT`** | Une nouvelle instance est créée à chaque injection | Faible à modéré | Instances temporaires non partagées. |
+
+<Note>
+**Règle de performance en or** : Évitez `Scope.REQUEST` autant que possible. Lorsqu'un service passe en `Scope.REQUEST`, tous les contrôleurs et services qui l'injectent basculent automatiquement en Request Scope en cascade !
+</Note>
+
+## 4. Organisation Modulaire pour Applications d'Envergure
+
+Pour éviter d'avoir un fichier `app.module.ts` monstrueux de 500 lignes, structurez votre projet selon les principes du Domain-Driven Design (DDD) :
+
+```txt
+src/
+├── app.module.ts
+├── common/                ◄── Éléments partagés (Guards, Interceptors, Filters)
+│   ├── guards/
+│   ├── interceptors/
+│   └── filters/
+├── core/                  ◄── Modules d'infrastructure uniques (Prisma, Config, Redis)
+│   ├── database/
+│   └── config/
+└── modules/               ◄── Modules métiers isolés (Auth, Users, Billing)
+    ├── auth/
+    │   ├── auth.module.ts
+    │   ├── auth.controller.ts
+    │   ├── auth.service.ts
+    │   └── dto/
+    └── users/
+        ├── users.module.ts
+        ├── users.controller.ts
+        ├── users.service.ts
+        └── dto/
+```
+
+Chaque module encapsule ses contrôleurs et services, et exporte explicitement uniquement les services que les autres modules sont autorisés à consommer (`exports: [UsersService]`).
 
 ## Conclusion
 
-NestJS apporte aux projets Node.js la rigueur et la structure d'entreprise qui manquent souvent aux configurations Express minimalistes. Combiné avec TypeScript, Prisma ou TypeORM, vous obtenez une pile backend robuste et facile à faire évoluer en équipe.
+NestJS ne se contente pas d'ajouter des décorateurs sur Express : il procure une discipline d'ingénierie logicielle indispensable aux projets d'envergure. En maîtrisant le cycle de vie des requêtes (Guards, Pipes, Interceptors), l'Inversion de Contrôle et l'architecture modulaire, vous garantissez que votre codebase restera propre, scalable et testable au fil des années.
