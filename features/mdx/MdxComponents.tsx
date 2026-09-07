@@ -5,6 +5,7 @@ import MdxNote from './MdxNote';
 export const component = {
   Youtube: MdxYoutube,
   Note: MdxNote,
+  h1: () => null,
   hr: () => null,
   table: ({ className, ...props }: React.HTMLAttributes<HTMLTableElement>) => (
     <div className="my-6 w-full overflow-x-auto rounded-xl border border-border/60 bg-card/30 shadow-xs">

@@ -146,13 +146,19 @@ export default async function Post({
       </div>
 
       {/* 2. EN-TÊTE ÉDITORIAL DE L'ARTICLE */}
-      <header className="space-y-3 pb-6 border-b border-border/40 mb-8">
+      <header className="space-y-4 pb-6 border-b border-border/40 mb-8">
         <h1 className="font-pixel-grid text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight text-foreground leading-[1.2] break-words">
           {post.title}
         </h1>
 
+        {post.description && (
+          <p className="text-base sm:text-lg text-muted-foreground leading-relaxed font-normal">
+            {post.description}
+          </p>
+        )}
+
         {/* Méta-données */}
-        <div className="flex flex-wrap items-center gap-3 text-muted-foreground text-xs font-mono">
+        <div className="flex flex-wrap items-center gap-3 text-muted-foreground text-xs font-mono pt-1">
           <time dateTime={post.publishedAt} className="tabular-nums">
             {new Date(post.publishedAt).toLocaleDateString(locale, {
               day: "numeric",

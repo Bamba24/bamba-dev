@@ -51,7 +51,7 @@ export function PostCard({ post }: { post: Post }) {
           <div className="flex items-start justify-between gap-4 pt-1">
             <h3
               id={`post-${post.slug}-title`}
-              className="text-base sm:text-lg font-semibold tracking-tight text-foreground group-hover:text-primary transition-colors leading-snug"
+              className="text-[15px] sm:text-[17px] font-semibold tracking-tight text-foreground group-hover:text-primary transition-colors leading-snug"
             >
               {post.title}
             </h3>
@@ -60,7 +60,7 @@ export function PostCard({ post }: { post: Post }) {
 
           {/* Description */}
           {post.description && (
-            <p className="text-sm text-muted-foreground line-clamp-2 leading-relaxed font-light mt-0.5">
+            <p className="text-xs sm:text-[13px] text-muted-foreground/80 line-clamp-2 leading-relaxed font-normal mt-1">
               {post.description}
             </p>
           )}
