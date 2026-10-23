@@ -9,7 +9,7 @@ time: 8
 
 # Performance GraphQL : Détecter et éradiquer le piège du N+1 côté client
 
-Dans la littérature technique, le problème du **N+1** est presque toujours abordé sous l'angle du backend : une requête SQL principale qui récupère une liste de $N$ éléments, suivie de $N$ requêtes supplémentaires pour charger les relations associées (résolu habituellement par un *DataLoader* ou un `JOIN`).
+Dans la littérature technique, le problème du **N+1** est presque toujours abordé sous l'angle du backend : une requête SQL principale qui récupère une liste de N éléments, suivie de N requêtes supplémentaires pour charger les relations associées (résolu habituellement par un *DataLoader* ou un `JOIN`).
 
 Mais il existe un piège tout aussi dévastateur qui passe souvent sous les radars : **le N+1 côté client dans les Single Page Applications (React / Next.js)**.
 

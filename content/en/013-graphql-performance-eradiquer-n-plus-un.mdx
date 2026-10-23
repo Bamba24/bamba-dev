@@ -9,7 +9,7 @@ time: 8
 
 # GraphQL Performance: Detecting and Eradicating Client-Side N+1 Cascades
 
-In software engineering, the **N+1 problem** is almost always discussed from a database standpoint: an initial query fetching $N$ records, followed by $N$ subsequent queries to load related foreign entities (normally solved with DataLoaders or SQL JOINs).
+In software engineering, the **N+1 problem** is almost always discussed from a database standpoint: an initial query fetching N records, followed by N subsequent queries to load related foreign entities (normally solved with DataLoaders or SQL JOINs).
 
 However, an equally devastating bottleneck frequently plagues Single Page Applications: **the client-side N+1 cascade in React / Next.js**.
 

@@ -99,7 +99,7 @@ Pour construire des applications robustes, appliquez scrupuleusement ce principe
 **Principe d'autonomie :** Chaque page et chaque vue interactive doit être 100 % autonome. Elle doit déclarer explicitement toutes les requêtes nécessaires à son affichage, sans jamais présumer de l'historique de navigation de l'utilisateur.
 </Note>
 
-N'ayez pas peur d'appeler le même hook dans votre sous-page. Si la donnée est déjà en cache, elle sera servie instantanément (en $0\text{ ms}$). Si la page est rechargée directement, elle déclenchera simplement le fetch nécessaire avec son `isLoading` et son skeleton approprié.
+N'ayez pas peur d'appeler le même hook dans votre sous-page. Si la donnée est déjà en cache, elle sera servie instantanément (en 0 ms). Si la page est rechargée directement, elle déclenchera simplement le fetch nécessaire avec son `isLoading` et son skeleton approprié.
 
 ---
 
