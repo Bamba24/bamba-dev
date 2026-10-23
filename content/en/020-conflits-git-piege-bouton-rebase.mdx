@@ -1,0 +1,113 @@
+---
+title: "Git Conflicts: Why GitLab/GitHub's 'Rebase' Button Is a Trap"
+description: "Demystify Git branch conflict resolution: why web editor buttons often fail and how to resolve merge conflicts safely on your local machine."
+tag: "Git"
+publishedAt: "2026-08-20"
+published: true
+time: 7
+---
+
+# Git Conflicts: Why GitLab/GitHub's 'Rebase' Button Is a Trap
+
+Every developer has encountered this dreaded notification on their PR:
+
+```txt
+⚠️ This branch has conflicts that must be resolved
+```
+
+Web interfaces like GitHub and GitLab frequently surface tempting one-click buttons: **"Rebase"** or **"Resolve conflicts"**.
+
+However, attempting to resolve non-trivial merge conflicts in a web browser without language servers or automated test runners often results in broken builds and regressions.
+
+In this article, we cover why web conflict resolution is risky and demonstrate the bulletproof local workflow.
+
+---
+
+## 1. Why Web Resolution Fails
+
+```txt
+┌────────────────────────────────────────────────────────┐
+│             The Web Resolution Pitfalls                │
+├────────────────────────────────────────────────────────┤
+│ ❌ No TypeScript Language Server (LSP)                 │
+│    -> You cannot see if imports or types break.        │
+│ ❌ No terminal to run test suites                      │
+│    -> You cannot verify test integrity.                │
+│ ❌ Opaque multi-commit rebasing                        │
+│    -> Resolving 6 consecutive commits in a browser is  │
+│       error-prone.                                     │
+└────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 2. The Reliable Local Workflow
+
+Always return to your local terminal where your editor, linters, and compilers live:
+
+```bash
+# 1. Update the target branch
+git checkout main
+git pull origin main
+
+# 2. Rebase your feature branch
+git checkout feature/my-branch
+git rebase main
+```
+
+---
+
+## 3. Demystifying Conflict Markers
+
+```typescript
+<<<<<<< HEAD (Code currently on target branch)
+export function getStatusBadge(user: User): string {
+  return user.lastActiveAt ? 'Active' : 'Dormant';
+}
+=======
+export function getStatusBadge(user: User): string {
+  return user.role === 'ADMIN' ? 'Admin' : 'Member';
+}
+>>>>>>> 8a3f12c (Your incoming feature commit)
+```
+
+Reconcile both intentions and delete the marker lines:
+
+```typescript
+// ✅ Clean reconciled code
+export function getStatusBadge(user: User): string {
+  const roleLabel = user.role === 'ADMIN' ? 'Admin' : 'Member';
+  const activityStatus = user.lastActiveAt ? 'Active' : 'Dormant';
+  return `${roleLabel} (${activityStatus})`;
+}
+```
+
+```bash
+git add src/utils/status.ts
+git rebase --continue
+```
+
+---
+
+## 4. Test Before Pushing with `--force-with-lease`
+
+<Note>
+**Crucial Step:** Run your validation suite locally before pushing:
+```bash
+npm run type-check && pnpm run build
+```
+</Note>
+
+Once verified, push safely without stomping on remote changes:
+
+```bash
+git push --force-with-lease origin feature/my-branch
+```
+
+---
+
+## Summary
+
+1. Avoid web-based conflict resolution editors for critical code.
+2. Synchronize target branches locally first.
+3. Verify type checking and builds locally before pushing with `--force-with-lease`.

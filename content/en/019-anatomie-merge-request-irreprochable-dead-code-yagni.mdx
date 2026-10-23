@@ -1,0 +1,67 @@
+---
+title: "Anatomy of an Irreproachable Merge Request: Eliminating Dead Code and Applying YAGNI"
+description: "Master code reviews: learn how to track down orphan dead code, strictly enforce YAGNI, and unify domain terminology across engineering and product."
+tag: "CleanCode"
+publishedAt: "2026-08-15"
+published: true
+time: 7
+---
+
+# Anatomy of an Irreproachable Merge Request: Eliminating Dead Code and Applying YAGNI
+
+In engineering teams, the **Merge Request (or Pull Request)** is the primary mechanism for knowledge sharing, quality assurance, and maintaining team velocity.
+
+Yet, reviews are frequently cluttered with 2,500 lines of exploratory scraps, abandoned components, and unrequested features.
+
+In this article, we outline the three principles required to deliver Pull Requests that reviewers and Lead Techs love to approve.
+
+---
+
+## 1. Relentlessly Hunting Down Dead Code
+
+During feature exploration, creating exploratory mock components or scrap utility functions is natural. The problem arises when these drafts remain in the final PR:
+
+```txt
+components/
+  ├─ UserTable.tsx             <-- Production component
+  ├─ UserTableExperimental.tsx <-- Abandoned prototype (never imported)
+  ├─ OldCardView.tsx           <-- Kept "just in case"
+  └─ utils/
+       └─ customSort.ts        <-- 80-line function never called
+```
+
+<Note>
+**Strict Rule:** No orphan, unimported file should ever enter a Merge Request. Git already preserves full history; you don't need dead files cluttering the tree.
+</Note>
+
+---
+
+## 2. Enforcing YAGNI: Avoid "Surprise" Features
+
+**YAGNI** (*You Aren't Gonna Need It*) is your strongest defense against accidental complexity.
+
+If a ticket asks to *"Display the client's last 10 invoices"*, do not include an unrequested custom CSV export button or multi-column filter persistence. Unsolicited code creates undocumented edge cases, security attack surfaces, and tech debt.
+
+---
+
+## 3. Ubiquitous Language & Terminology Alignment
+
+Ensure designers, engineers, and product managers use the exact same words:
+
+```txt
+In Figma:           "Units"
+In React UI:        "Departments"
+In Database:        "teams"
+In GraphQL:         "groups"
+```
+
+Inconsistent terminology confuses users and onboarding engineers alike. Align code names with real business concepts.
+
+---
+
+## Pre-Review Self-Checklist
+
+- [ ] Run `git diff` on your own branch before requesting review.
+- [ ] Remove all temporary `console.log` statements.
+- [ ] Delete unused exploratory files.
+- [ ] Confirm `npm run type-check` and `pnpm run build` pass with 0 warnings.

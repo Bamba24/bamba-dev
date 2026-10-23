@@ -1,0 +1,158 @@
+---
+title: "TypeScript en conditions réelles : Pourquoi vos fonctions utilitaires plantent en production"
+description: "Votre code compile à 100 %, mais crashe en production sur un TypeError ? Découvrez les pièges du polymorphisme d'API, de filter(Boolean) et des mauvaises assertions."
+tag: "TypeScript"
+publishedAt: "2026-07-25"
+published: true
+time: 7
+---
+
+# TypeScript en conditions réelles : Pourquoi vos fonctions utilitaires plantent en production
+
+C'est une scène vécue par tous les développeurs modernes : vous passez des heures à peaufiner votre code, la commande `tsc --noEmit` s'exécute sans la moindre erreur, la pipeline CI est au vert... et 10 minutes après le déploiement en production, votre outil de monitoring (Sentry, Datadog) s'affole :
+
+```txt
+💥 Uncaught TypeError: value.toLowerCase is not a function
+💥 Uncaught TypeError: Cannot read properties of undefined (reading 'replace')
+```
+
+Comment est-ce possible alors que le compilateur TypeScript n'avait rien trouvé à redire ?
+
+Dans cet article, nous allons explorer les failles communes qui trompent le compilateur, le piège pernicieux de `filter(Boolean)` et la manière d'écrire des fonctions utilitaires véritablement blindées pour la production.
+
+---
+
+## 1. Le polymorphisme d'API et les fausses certitudes
+
+TypeScript effectue une vérification statique au moment de la compilation. Cependant, une fois le code exécuté dans le navigateur, **TypeScript n'existe plus** : seul du JavaScript brut s'exécute avec les données réelles retournées par le réseau.
+
+### Le cas classique de la fonction de formatage naïve :
+
+```typescript
+// ❌ Fonction fragile : fait confiance aveuglément au contrat de type
+export function formatUserBadge(role: string): string {
+  return role.toUpperCase().trim();
+}
+```
+
+Que se passe-t-il si :
+- L'API retourne un champ `null` parce que l'utilisateur n'a pas encore de rôle assigné ?
+- L'API retourne un entier numérique `1` (code enum) ?
+- Un ancien contrat d'API renvoie un tableau de rôles `["ADMIN", "EDITOR"]` ?
+
+La fonction crashe violemment.
+
+### La tentation toxique : l'assertion aveugle (`as`)
+
+Face à une erreur de typage lors du développement, le réflexe le plus dangereux consiste à forcer la main au compilateur :
+
+```typescript
+// ❌ DANGEREUX : Vous mentez sciemment au compilateur
+const userRole = (apiResponse.role as unknown as string).toUpperCase();
+```
+
+En utilisant `as unknown as T` ou l'opérateur non-null assertion `!`, vous désactivez l'unique protection offerte par TypeScript. Vous troquez une erreur de compilation claire contre un crash silencieux en production.
+
+---
+
+## 2. Le piège méconnu de `filter(Boolean)`
+
+Voici l'une des erreurs les plus fréquentes dans les codebases React : assainir une liste d'éléments nullables.
+
+Imaginons que votre API GraphQL retourne une liste où certains éléments peuvent être nuls : `Array<User | null | undefined>`.
+
+Beaucoup de développeurs écrivent ceci :
+
+```typescript
+// ❌ Faux ami : filter(Boolean)
+const activeUsers = rawUsers.filter(Boolean);
+```
+
+### Pourquoi c'est un piège ?
+
+1. **Typage incomplet** : Selon votre configuration de TypeScript (`strictNullChecks`), l'inférence de type ne garantit pas que `null` a disparu du type retourné. Pour TypeScript, `activeUsers` reste souvent considéré comme contenant potentiellement des valeurs nulles.
+2. **Effets de bord sur les valeurs falsy légitimes** : `Boolean()` élimine le chiffre `0`, la chaîne vide `""`, et le booléen `false` ! Si votre tableau contient des nombres ou des booléens, ils sont accidentellement purgés.
+
+### La solution : Le Type Guard prédictif strict
+
+Pour garantir à la fois l'exactitude mathématique et la sécurité TypeScript, écrivez toujours un prédicat de type explicite :
+
+```typescript
+// ✅ Type Guard prédictif irréprochable
+const cleanUsers = rawUsers.filter(
+  (user): user is NonNullable<typeof user> => user != null
+);
+```
+
+En utilisant `user != null` (avec l'égalité lâche `!=`), vous éliminez simultanément `null` et `undefined`, tout en conservant `0`, `false` et les chaînes vides. TypeScript infère immédiatement un type `NonNullable<User>[]` parfaitement sécurisé.
+
+---
+
+## 3. Anatomie d'une fonction utilitaire résiliente
+
+Prenons l'exemple d'un formateur de chaîne ou de date. Une fonction utilitaire digne de la production doit être **défensive** :
+
+```typescript
+// lib/utils/string.ts
+
+/**
+ * Normalise et tronque un texte de façon sécurisée.
+ * Ne crashe JAMAIS, même en recevant null, undefined ou un type inattendu.
+ */
+export function safeTruncate(value: unknown, maxLength = 50): string {
+  // 1. Vérification de type au runtime (Runtime Type Check)
+  if (typeof value !== 'string') {
+    return '';
+  }
+
+  // 2. Traitement propre
+  const trimmed = value.trim();
+  if (trimmed.length <= maxLength) {
+    return trimmed;
+  }
+
+  return `${trimmed.slice(0, maxLength)}…`;
+}
+```
+
+Remarquez l'utilisation de `value: unknown` plutôt que `any` :
+- `any` dit à TypeScript : *"Fais comme si tout était permis, ne vérifie rien."*
+- `unknown` dit à TypeScript : *"Je ne sais pas encore ce que c'est, oblige-moi à vérifier son type avant d'appeler la moindre méthode."*
+
+---
+
+## 4. Réutilisation des utilitaires communs (DRY & Zéro duplication)
+
+Un autre symptôme de mauvaise hygiène dans un projet est la prolifération de fonctions utilitaires "ad-hoc" recopiées au sein de chaque composant.
+
+```txt
+components/
+  ├─ UserProfile.tsx   -> const formatDate = (d: any) => ...
+  ├─ InvoiceList.tsx   -> function formatMyDate(date: string) => ...
+  └─ AuditLog.tsx      -> const displayDate = (str: any) => ...
+```
+
+### Les risques :
+- Incohérence d'affichage (une page affiche `24/10/2026`, l'autre `24 oct. 2026`).
+- Bugs de fuseaux horaires (Timezones) corrigés sur un composant mais oubliés sur les 5 autres.
+
+### La règle d'or :
+Centralisez vos formateurs dans un module partagé (`lib/utils/format-date.ts`). Si un besoin métier spécifique émerge (ex: afficher *"Jamais connecté"* si la date est nulle), composez avec l'utilitaire existant au lieu d'en réécrire une version bancale :
+
+```typescript
+// Utilisation propre et composée
+import { formatDate } from '@/lib/utils/format-date';
+
+export function LastLoginBadge({ date }: { date?: string | null }) {
+  const label = date ? formatDate(date) : 'Jamais connecté';
+  return <span className="text-xs text-muted-foreground">{label}</span>;
+}
+```
+
+---
+
+## En résumé
+
+1. **Bannissez `any` et les assertions aveugles (`as unknown as T`)** : Si le type ne colle pas, le problème vient de votre modèle ou d'une absence de validation runtime.
+2. **Remplacez `filter(Boolean)`** par un vrai type guard : `(x): x is NonNullable<typeof x> => x != null`.
+3. **Validez les frontières réseau** : Ce qui vient de l'API est faillible. Traitez les paramètres externes avec défiance grâce à des types stricts et des fonctions résilientes.

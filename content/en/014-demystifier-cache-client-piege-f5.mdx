@@ -1,0 +1,92 @@
+---
+title: "Demystifying Client Cache (RTK Query / TanStack Query) and the F5 Refresh Trap"
+description: "Understand in-memory caching mechanisms in modern Single Page Applications and avoid fatal crashes caused by F5 refresh and deep-linking."
+tag: "React"
+publishedAt: "2026-07-20"
+published: true
+time: 7
+---
+
+# Demystifying Client Cache (RTK Query / TanStack Query) and the F5 Refresh Trap
+
+Modern server-state management libraries like **RTK Query**, **TanStack Query**, and **Apollo Client** have fundamentally changed how React handles asynchronous data fetching.
+
+Yet, misunderstandings regarding in-memory cache lifecycles frequently result in severe production bugs: **the fatal F5 refresh and deep-linking trap**.
+
+In this article, we explore how client caches operate through subscription reference counting, and why component data autonomy is essential.
+
+---
+
+## 1. How Client Caches Work: Subscriptions & Deduplication
+
+Unlike local `useState` variables, query caches manage a centralized in-memory store tracked by active subscriber counts:
+
+```txt
+Component A (Header)          Component B (Sidebar)        Component C (MainView)
+      │                             │                             │
+      ├─► useGetOrganization(42)    ├─► useGetOrganization(42)    ├─► useGetOrganization(42)
+      │                             │                             │
+      └───────────────┬─────────────┴──────────────┬──────────────┘
+                      │                            │
+                      ▼                            ▼
+         ┌───────────────────────────────────────────────────┐
+         │             Client Cache Manager                  │
+         │  Key: "getOrganization(42)"                       │
+         │  Active Subscribers: 3 (A, B, C)                  │
+         │  Status: Fetch already in flight                  │
+         └─────────────────────────┬─────────────────────────┘
+                                   │
+                                   ▼
+             ┌───────────────────────────────────────────┐
+             │            1 SINGLE NETWORK REQUEST       │
+             │           GET /graphql (orgId: 42)        │
+             └───────────────────────────────────────────┘
+```
+
+Even if multiple components call the same hook simultaneously, only **one single HTTP request** travels over the wire.
+
+---
+
+## 2. The Fatal Trap: False Optimization & Deep-Linking Crashes
+
+Consider this common mistake:
+
+1. A developer creates `/organizations/[id]` with `useGetOrganizationQuery(id)`.
+2. Next, they build `/organizations/[id]/settings`.
+3. They assume: *"Since users navigate from the parent page, the organization is already cached! I'll skip calling the hook in the settings tab."*
+
+### What happens in production:
+
+When a user hits **F5 (Refresh)** or shares a direct deep-link `/organizations/42/settings` via Slack:
+
+```txt
+New navigation session (F5 / Direct URL)
+         │
+         ▼
+Page: /organizations/42/settings
+         │
+         ▼
+In-memory cache is 100% EMPTY!
+The component declared no query hook...
+         │
+         ▼
+💥 CRASH: TypeError: Cannot read properties of undefined (reading 'name')
+```
+
+---
+
+## 3. The Golden Rule: Autonomous Components
+
+<Note>
+**Component Autonomy:** Every page and view must be completely self-reliant. It must explicitly declare all queries necessary to render itself, without making assumptions about previous user navigation history.
+</Note>
+
+Calling the hook again on the subpage has zero network penalty if data is already fresh in cache. But on a hard reload, it reliably fetches data and displays proper loading states.
+
+---
+
+## Summary
+
+- Never build custom global state stores to duplicate query cache results.
+- Let RTK Query / TanStack Query be the single source of truth.
+- Invalidate cache entries with tags upon mutations instead of resource-heavy polling intervals.

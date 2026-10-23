@@ -1,0 +1,112 @@
+---
+title: "Dashboard & KPIs : Ne confondez jamais 'Statut de compte' et 'Activité réelle'"
+description: "Pourquoi afficher 100 % d'utilisateurs actifs trompe vos décideurs ? Découvrez comment concevoir des métriques SaaS reflétant la véritable adoption produit."
+tag: "Product"
+publishedAt: "2026-08-05"
+published: true
+time: 6
+---
+
+# Dashboard & KPIs : Ne confondez jamais "Statut de compte" et "Activité réelle"
+
+Dans le monde du SaaS B2B et des applications d'entreprise, les tableaux de bord sont la boussole des décideurs (DRH, directeurs d'équipe, investisseurs). Pourtant, une erreur de conception omniprésente fausse régulièrement les arbitrages stratégiques : **la confusion entre le statut administratif d'un compte et l'activité réelle d'un utilisateur**.
+
+Un tableau de bord qui affiche fièrement un taux d'adoption de 98 % alors que la majorité des employés n'ont pas ouvert l'outil depuis six mois prépare un désastre lors du renouvellement des licences (le redouté *churn*).
+
+Dans cet article, nous allons voir pourquoi cette distinction est vitale et comment modéliser des indicateurs d'adoption honnêtes et exploitables.
+
+---
+
+## 1. La grande illusion : Statut de compte vs Activité réelle
+
+Regardons comment deux visions s'opposent au sein d'une même base de données :
+
+```txt
+┌────────────────────────────────────────────────────────────────────────┐
+│                   VISION 1 : LE STATUT ADMINISTRATIF                   │
+│   (Table SQL: users.status = 'ACTIVE')                                 │
+│                                                                        │
+│   "L'employé a cliqué sur son lien d'invitation il y a 8 mois.         │
+│    Son compte n'est ni suspendu ni supprimé.                           │
+│    => RÉSULTAT DASHBOARD : Compte Actif (100 %) !"                     │
+└───────────────────────────────────┬────────────────────────────────────┘
+                                    │ Mais dans la vraie vie...
+                                    ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│                     VISION 2 : L'ACTIVITÉ RÉELLE                       │
+│   (Table SQL: audit_logs / user_sessions)                              │
+│                                                                        │
+│   "Dernière connexion enregistrée : il y a 140 jours.                  │
+│    Actions métier effectuées ce mois-ci : 0.                           │
+│    => RÉALITÉ OPÉRATIONNELLE : Utilisateur Dormant / Perdu !"          │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+Quand un client B2B souscrit à 100 licences logicielles pour ses collaborateurs, voir un graphique indiquant `100 / 100 licences actives` sur la base du seul statut administratif lui donne un faux sentiment de succès.
+
+Trois mois avant la reconduction du contrat, lorsque la direction financière analyse l'utilité réelle de la facture, le choc est brutal : **seuls 25 collaborateurs utilisent réellement la plateforme**. Le contrat est réduit de 75 % ou résilié.
+
+---
+
+## 2. L'entonnoir de la réalité utilisateur
+
+Pour donner de la valeur à vos clients, vos dashboards doivent refléter l'entonnoir opérationnel complet :
+
+```txt
+[ Licences souscrites : 100 ]
+         │
+         ▼
+[ Invitations acceptées : 92 ]  ───────►  8 invitations en attente (action RH requise)
+         │
+         ▼
+[ Première connexion faite : 85 ] ────►  7 utilisateurs n'ont jamais dépassé l'onboarding
+         │
+         ▼
+[ Actifs ces 30 derniers jours (MAU) : 34 ] ──► 51 utilisateurs dormants à réengager !
+```
+
+---
+
+## 3. Typologie des statuts recommandée en SaaS B2B
+
+Au lieu d'un booléen simpliste `isActive: true | false`, structurez vos indicateurs autour de statuts opérationnels clairs :
+
+| Statut Métier | Définition Précise | Action Recommandée dans l'UI |
+| :--- | :--- | :--- |
+| **Actif Récent** | S'est connecté et a réalisé au moins une action clé dans les 30 derniers jours | Badge vert : Utilisation saine |
+| **En Attente d'Activation** | Invitation envoyée par email, mais mot de passe non créé | Bouton « Renvoyer l'invitation » |
+| **Jamais Connecté** | Compte créé/provisionné, mais 0 session enregistrée depuis plus de 14 jours | Alerte onboarding bloqué |
+| **Dormant / Risque d'abandon** | Anciennement actif, mais aucune activité depuis plus de 45 jours | Déclencher une campagne de réengagement |
+| **Suspendu / Désactivé** | Statut administratif désactivé (départ de l'entreprise) | Libérer le siège de licence |
+
+---
+
+## 4. Comment implémenter ce calcul proprement ?
+
+Conformément aux principes d'architecture moderne, ce calcul d'activité ne doit **jamais** être réalisé en téléchargeant les 10 000 logs de connexion sur le navigateur client. C'est le rôle de l'agrégation serveur.
+
+### Modélisation GraphQL recommandée
+
+```graphql
+type OrganizationAdoptionKpis {
+  totalSeats: Int!
+  assignedSeats: Int!
+  
+  # Statuts opérationnels consolidés par le serveur
+  activeUsersLast30Days: Int!
+  dormantUsersCount: Int!
+  pendingInvitationsCount: Int!
+  neverConnectedCount: Int!
+  
+  # Taux d'engagement réel calculé côté serveur
+  realEngagementRate: Float!
+}
+```
+
+En fournissant directement ces compteurs agrégés, le composant de tableau de bord reste léger, performant et parfaitement fiable.
+
+---
+
+## Conclusion
+
+Un produit SaaS respecté est un produit qui aide ses clients à regarder la réalité en face. En bannissant les vanity metrics basées sur de simples statuts administratifs et en valorisant l'**activité réelle**, vous offrez aux administrateurs les leviers nécessaires pour accompagner leurs équipes et maximiser la rétention à long terme.

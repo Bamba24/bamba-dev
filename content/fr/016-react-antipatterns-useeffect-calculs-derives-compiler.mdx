@@ -1,0 +1,141 @@
+---
+title: "React Anti-patterns : useEffect, calculs dérivés et l'ère du React Compiler"
+description: "Arrêtez de copier vos données d'API dans useState avec useEffect ! Découvrez comment calculer vos états dérivés de façon synchrone et comment appréhender le React Compiler."
+tag: "React"
+publishedAt: "2026-08-01"
+published: true
+time: 8
+---
+
+# React Anti-patterns : useEffect, calculs dérivés et l'ère du React Compiler
+
+Dans l'écosystème React, `useEffect` est à la fois le hook le plus utilisé et le plus détourné de sa fonction première. Créé à l'origine pour synchroniser un composant avec des systèmes externes (DOM, abonnements WebSocket, timers), il est devenu par habitude le réceptacle de toutes les transformations de données d'API.
+
+Avec l'arrivée de Next.js moderne et du **React Compiler**, ces mauvaises habitudes ne créent pas seulement du code verbeux : elles dégradent activement les performances et l'expérience utilisateur.
+
+Dans cet article, nous allons voir pourquoi l'association `useEffect + useState` pour dériver des données est un anti-pattern majeur et comment aborder sereinement la mémoïsation aujourd'hui.
+
+---
+
+## 1. L'anti-pattern `useEffect` + `useState` pour les données dérivées
+
+Voici le schéma de code que l'on rencontre encore dans des milliers de projets :
+
+```typescript
+// ❌ ANTI-PATTERN : Duplication d'état via useEffect
+export function UserList() {
+  const { data: users = [] } = useGetUsersQuery();
+  const [activeUsers, setActiveUsers] = useState<User[]>([]);
+
+  useEffect(() => {
+    // On copie la donnée issue de l'API dans un état local pour la filtrer
+    const filtered = users.filter((u) => u.isActive);
+    setActiveUsers(filtered);
+  }, [users]);
+
+  return <div>{/* Affichage de activeUsers */}</div>;
+}
+```
+
+### Pourquoi ce code est toxique :
+
+1. **Re-render en cascade (Flickering)** :
+   - Premier cycle de rendu : `users` arrive, `activeUsers` est vide `[]`. L'écran affiche un état vide.
+   - L'effet se déclenche après l'affichage du DOM, appelle `setActiveUsers()`.
+   - Deuxième cycle de rendu : React est forcé de recalculer et réafficher tout le composant.
+2. **Désynchronisation et états fantômes** : Si la query se met à jour, il existe une fraction de seconde où `activeUsers` reflète l'ancien état alors que `users` a déjà changé.
+3. **Complexité inutile** : Vous gérez deux variables d'état là où une seule suffit.
+
+### La bonne pratique : Le calcul synchrone direct
+
+En JavaScript, filtrer un tableau de quelques dizaines ou centaines d'éléments prend moins de **0,1 milliseconde**. Faites le calcul directement dans le corps de votre composant :
+
+```typescript
+// ✅ BONNE PRATIQUE : Calcul synchrone au rendu
+export function UserList() {
+  const { data: users = [] } = useGetUsersQuery();
+
+  // Calculé immédiatement, sans aucun effet ni état dupliqué !
+  const activeUsers = users.filter((u) => u.isActive);
+
+  return <div>{/* Affichage instantané */}</div>;
+}
+```
+
+---
+
+## 2. Ne recalculez pas ce que le backend fournit déjà
+
+Un corollaire direct de ce problème est la tentative de réinventer les agrégats de base de données dans le navigateur.
+
+```typescript
+// ❌ Ne faites pas ça côté frontend :
+const progressPercentage = (completedTasks / totalTasks) * 100;
+const totalRevenue = invoices.reduce((acc, curr) => acc + curr.amount, 0);
+```
+
+Si le backend dispose déjà d'une vue ou d'une requête analytique qui retourne ces totaux, **faites confiance aux agrégats de l'API**. 
+
+Le serveur SQL est des millions de fois plus efficace pour calculer des sommes, des moyennes ou des pourcentages sur des index que votre client JavaScript qui doit d'abord télécharger des milliers de lignes sur le réseau avant de faire un `reduce()`.
+
+---
+
+## 3. L'ère du React Compiler : Faut-il encore écrire `useMemo` et `useCallback` ?
+
+L'arrivée du **React Compiler** (activable dans `next.config.js` via `experimental.reactCompiler: true`) marque un tournant historique dans l'écosystème.
+
+```txt
+Sans React Compiler (Ancien monde) :
+  Le développeur doit deviner et parse manuellement :
+  useMemo(() => compute(), [a, b])
+  useCallback(() => doSomething(), [dep])
+  => Risque permanent de bugs de dépendances oubliées ou de sur-mémoïsation inutile.
+
+Avec React Compiler (Monde moderne) :
+  Le compilateur analyse le graphe de dépendances au build.
+  Il insère automatiquement la mémoïsation exacte au niveau des blocs d'instructions.
+  => Votre code reste pur, lisible, et optimisé nativement par le moteur.
+```
+
+### Le surcoût caché de la sur-mémoïsation
+
+Même sans le React Compiler, beaucoup de développeurs abusent de `useMemo` pour des opérations parfaitement triviales :
+
+```typescript
+// ❌ SURCOÛT INUTILE : useMemo pour concaténer deux chaînes !
+const fullName = useMemo(() => `${firstName} ${lastName}`, [firstName, lastName]);
+
+// ❌ SURCOÛT INUTILE : useMemo pour filtrer 15 éléments
+const availableTags = useMemo(() => tags.filter(t => !t.hidden), [tags]);
+```
+
+### Pourquoi cela dégrade les performances ?
+Invoquer un hook comme `useMemo` n'est pas gratuit :
+- React doit allouer un objet en mémoire pour stocker la fonction et le tableau de dépendances.
+- À chaque rendu, React doit itérer sur chaque élément du tableau de dépendances et faire une comparaison d'égalité (`Object.is`).
+- **Pour des opérations simples, comparer les dépendances prend plus de temps CPU que d'exécuter directement le calcul !**
+
+---
+
+## 4. Quand la mémoïsation manuelle reste-t-elle légitime ?
+
+En l'absence de React Compiler, réservez `useMemo` et `useCallback` à deux cas précis et documentés :
+
+1. **Calculs algorithmiques réellement lourds** : Traitement de listes de plusieurs milliers d'entrées, calculs géométriques ou transformations complexes de graphes.
+2. **Stabilité référentielle pour l'optimisation d'enfants** : Lorsqu'un objet ou un callback est passé en prop à un composant enfant lourd enveloppé dans `React.memo(ChildComponent)`.
+
+| Opération | useMemo nécessaire ? | Pourquoi ? |
+| :--- | :--- | :--- |
+| Concaténation de strings / formatage de date | ❌ NON | Coût du calcul < Coût de l'allocation du hook |
+| Filtrer un tableau de 50 éléments | ❌ NON | Exécution en ~0.05ms, totalement imperceptible |
+| Tri d'une liste de 10 000 lignes | ✅ OUI | Évite de bloquer le thread principal à chaque re-render |
+| Callback passé à une liste virtualisée (`React.memo`) | ✅ OUI | Préserve la référence pour éviter de re-render 1 000 lignes |
+
+---
+
+## Conclusion
+
+Simplifiez votre code React :
+1. **Supprimez les `useEffect`** qui ne font que copier ou dériver des données.
+2. **Calculez au vol de façon synchrone**.
+3. **Laissez le React Compiler faire son travail**, et ne sortez `useMemo` que lorsque vous avez une preuve mesurable d'un goulet d'étranglement.

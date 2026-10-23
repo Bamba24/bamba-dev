@@ -1,0 +1,154 @@
+---
+title: "Conflits Git : Pourquoi le bouton 'Rebase' de GitLab/GitHub peut vous piéger"
+description: "Démystifiez la résolution de conflits Git : comprenez pourquoi les boutons web échouent souvent et apprenez la méthode infaillible en local."
+tag: "Git"
+publishedAt: "2026-08-20"
+published: true
+time: 7
+---
+
+# Conflits Git : Pourquoi le bouton "Rebase" de GitLab/GitHub peut vous piéger
+
+Dans la vie d'une équipe de développement, il arrive inévitablement un moment où votre Merge Request affiche ce bandeau rouge redouté :
+
+```txt
+⚠️ This branch has conflicts that must be resolved
+```
+
+À côté de ce message, les interfaces web de GitHub et GitLab proposent souvent un bouton séduisant : **« Rebase »** ou **« Resolve conflicts »**.
+
+Pour beaucoup de développeurs juniors ou intermédiaires, ce bouton ressemble à une solution magique en un clic. Pourtant, tenter de résoudre des conflits complexes directement dans le navigateur mène très souvent à des commits cassés, des régressions silencieuses et un blocage complet de la branche.
+
+Dans cet article, nous allons comprendre pourquoi la résolution web est un piège et détailler la méthode locale étape par étape pour fusionner ou rebaser sereinement.
+
+---
+
+## 1. Pourquoi le bouton web est un faux ami
+
+Lorsque deux développeurs modifient des lignes de code proches ou touchent aux mêmes fichiers de dépendances (`package.json`, `pnpm-lock.yaml`), Git ne peut pas deviner l'intention métier des deux parties.
+
+```txt
+┌────────────────────────────────────────────────────────┐
+│               Le problème de l'éditeur web             │
+├────────────────────────────────────────────────────────┤
+│ ❌ Pas de TypeScript Language Server (LSP)             │
+│    -> Vous ne voyez pas si vos modifications compilent.│
+│                                                        │
+│ ❌ Pas de terminal pour lancer les tests               │
+│    -> Vous ne savez pas si la suite de tests est verte.│
+│                                                        │
+│ ❌ Résolution commit par commit opaque                 │
+│    -> Si le rebase comporte 8 commits en conflit,      │
+│       l'interface web devient rapidement incompréhensible.
+└────────────────────────────────────────────────────────┘
+```
+
+Résultat : vous validez un merge approximatif dans le navigateur, la CI se relance et explose 30 secondes plus tard avec une erreur de syntaxe ou un conflit d'import.
+
+---
+
+## 2. La méthode locale infaillible étape par étape
+
+Pour résoudre un conflit proprement, **revenez toujours dans votre terminal local**, là où vous disposez de votre éditeur (VS Code, Cursor), de votre terminal et de vos commandes de test.
+
+### Étape 1 : Mettre à jour la branche de référence
+
+Avant toute chose, récupérez l'état le plus récent de la branche cible (généralement `main` ou `developpement`) :
+
+```bash
+# 1. Aller sur la branche cible et la synchroniser
+git checkout developpement
+git pull origin developpement
+
+# 2. Revenir sur votre branche de travail
+git checkout ma-feature-branch
+```
+
+### Étape 2 : Lancer le Rebase (ou Merge selon votre convention)
+
+Si votre équipe privilégie un historique linéaire sans commits de merge inutiles :
+
+```bash
+git rebase developpement
+```
+
+Git va alors "rembobiner" vos commits locaux, appliquer les nouveaux commits de `developpement`, puis rejouer vos modifications une à une par-dessus.
+
+---
+
+## 3. Décoder les marqueurs de conflit sans paniquer
+
+Dès qu'un conflit survient, Git suspend l'opération et balise les fichiers impactés avec des marqueurs visuels :
+
+```typescript
+<<<<<<< HEAD (Version actuellement sur la branche de référence)
+export function getStatusBadge(user: User): string {
+  return user.lastActiveAt ? 'Actif' : 'Dormant';
+}
+=======
+export function getStatusBadge(user: User): string {
+  return user.role === 'ADMIN' ? 'Administrateur' : 'Membre';
+}
+>>>>>>> 8a3f12c (Votre commit en cours d'application)
+```
+
+### Comment lire ce bloc :
+- La partie supérieure entre `<<<<<<< HEAD` et `=======` représente le code existant sur la branche cible.
+- La partie inférieure entre `=======` et `>>>>>>>` représente votre modification.
+- **Votre mission :** Choisir la bonne logique (souvent en combinant les deux intentions métier) et supprimer impérativement les marqueurs `<<<`, `===`, `>>>`.
+
+```typescript
+// ✅ Version réconciliée et harmonieuse
+export function getStatusBadge(user: User): string {
+  const roleLabel = user.role === 'ADMIN' ? 'Administrateur' : 'Membre';
+  const activityStatus = user.lastActiveAt ? 'Actif' : 'Dormant';
+  return `${roleLabel} (${activityStatus})`;
+}
+```
+
+---
+
+## 4. Continuer le rebase et valider localement
+
+Une fois les fichiers résolus et enregistrés :
+
+```bash
+# Marquer les fichiers résolus
+git add src/utils/status.ts
+
+# Continuer le rebase
+git rebase --continue
+```
+
+Répétez l'opération jusqu'à ce que Git affiche `Successfully rebased and updated refs/heads/ma-feature-branch`.
+
+<Note>
+**L'étape cruciale avant de repousser :** Ne faites pas de `git push` tout de suite ! Lancez impérativement la vérification locale :
+```bash
+npm run type-check && pnpm run build
+```
+Si le build passe sans avertissement, vous avez la certitude que votre réconciliation fonctionne.
+</Note>
+
+---
+
+## 5. Repousser avec sécurité : `--force-with-lease`
+
+Après un rebase, l'historique de votre branche a été réécrit. Un simple `git push` sera rejeté.
+
+N'utilisez jamais l'option brutale `git push --force` qui peut écraser les commits de vos collègues sans avertissement. Utilisez toujours :
+
+```bash
+git push --force-with-lease origin ma-feature-branch
+```
+
+L'option `--force-with-lease` vérifie que personne n'a poussé de nouveaux commits sur la branche distante entre temps, garantissant une sécurité totale.
+
+---
+
+## En résumé
+
+1. **Fuyez le bouton de rebase web** pour tout conflit impliquant du code métier.
+2. **Synchronisez la branche cible en local** avant d'entamer la résolution.
+3. **Réconciliez intelligemment** en comprenant l'intention de chaque modification.
+4. **Validez toujours avec votre compilateur et vos tests en local** avant de pousser avec `--force-with-lease`.

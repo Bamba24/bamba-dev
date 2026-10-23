@@ -1,0 +1,145 @@
+---
+title: "Performance GraphQL : Détecter et éradiquer le piège du N+1 côté client"
+description: "Le problème N+1 ne frappe pas que les bases de données SQL. Découvrez comment repérer et supprimer les cascades de requêtes GraphQL destructrices en React."
+tag: "GraphQL"
+publishedAt: "2026-07-15"
+published: true
+time: 8
+---
+
+# Performance GraphQL : Détecter et éradiquer le piège du N+1 côté client
+
+Dans la littérature technique, le problème du **N+1** est presque toujours abordé sous l'angle du backend : une requête SQL principale qui récupère une liste de $N$ éléments, suivie de $N$ requêtes supplémentaires pour charger les relations associées (résolu habituellement par un *DataLoader* ou un `JOIN`).
+
+Mais il existe un piège tout aussi dévastateur qui passe souvent sous les radars : **le N+1 côté client dans les Single Page Applications (React / Next.js)**.
+
+Dans cet article, nous allons disséquer ce phénomène, voir comment il s'introduit dans votre code et apprendre les réflexes d'architecture pour l'éradiquer définitivement.
+
+---
+
+## 1. Comment naît le N+1 frontend ?
+
+Imaginez un tableau de bord d'entreprise affichant une liste de 50 membres d'une organisation, avec pour chacun son taux de progression ou ses certifications.
+
+Une implémentation naïve consiste à récupérer la liste des membres, puis à itérer dans un composant enfant ou via une boucle pour déclencher une requête individuelle par utilisateur :
+
+```typescript
+// ❌ PIÈGE MORTEL : Requête N+1 déclenchée côté client
+export function MembersTable({ memberIds }: { memberIds: string[] }) {
+  // Déclenche 50 requêtes HTTP individuelles en cascade !
+  useEffect(() => {
+    memberIds.forEach((id) => {
+      dispatch(api.endpoints.getMemberProgress.initiate(id));
+    });
+  }, [memberIds]);
+
+  return <div>{/* Rendu du tableau */}</div>;
+}
+```
+
+Ou pire, à l'intérieur du composant enfant unitaire :
+
+```typescript
+// ❌ Anti-pattern dans le composant de ligne
+function MemberRow({ memberId }: { memberId: string }) {
+  // Si le tableau affiche 100 lignes, ce hook déclenche 100 requêtes HTTP distinctes !
+  const { data } = useGetMemberProgressQuery(memberId);
+  return <tr><td>{data?.progress}%</td></tr>;
+}
+```
+
+---
+
+## 2. L'impact réseau : Le Waterfall destructeur
+
+Regardons ce qui se passe dans le panneau Réseau (*Network DevTools*) du navigateur de l'utilisateur :
+
+```txt
+Requête initiale : GetOrganizationMembers
+[════════════════════════════════] (200 OK - 50 membres retournés)
+  │
+  ├─► Requête 1 : getMemberProgress(id: 1)   [═══════════]
+  ├─► Requête 2 : getMemberProgress(id: 2)   [═══════════]
+  ├─► Requête 3 : getMemberProgress(id: 3)   [═══════════]
+  ├─► Requête 4 : getMemberProgress(id: 4)   [═══════════]
+  │   ... (46 requêtes HTTP supplémentaires !)
+  └─► Requête 50: getMemberProgress(id: 50)  [═══════════]
+```
+
+### Les conséquences concrètes :
+1. **Saturation de la file d'attente HTTP** : Les navigateurs limitent les connexions TCP simultanées par domaine (souvent 6 sur HTTP/1.1). Les requêtes sont mises en attente (*stalled*).
+2. **Surconsommation CPU & Batterie** : 50 handshakes SSL, 50 parsings JSON de réponses, 50 dispatchs d'actions dans le store global.
+3. **Risque de Rate Limiting (HTTP 429)** : Votre passerelle API ou votre WAF bloque les requêtes pour cause de spam accidentel.
+
+---
+
+## 3. La solution saine : L'approche Backend-First
+
+La règle d'or pour éliminer le N+1 frontend est intransigeante :
+
+<Note>
+**Règle d'or :** Il est strictement interdit d'itérer sur un tableau d'identifiants côté client pour déclencher des requêtes en boucle. Si une vue tabulaire a besoin des données de plusieurs entités, vous devez exiger du backend une requête groupée (*bulk*) ou agrégée.
+</Note>
+
+### Cas 1 : La requête groupée par identifiants
+Au lieu de requêter 1 par 1, le backend accepte une liste d'IDs :
+
+```graphql
+# members.graphql
+query GetMembersProgress($memberIds: [ID!]!) {
+  membersProgress(memberIds: $memberIds) {
+    memberId
+    completionPercentage
+    lastActivityAt
+  }
+}
+```
+
+### Cas 2 : La requête directement scoped à l'organisation
+Encore plus propre, on scope la donnée directement au niveau du parent métier :
+
+```graphql
+# orgProgress.graphql
+query GetOrgMembersProgress($organizationId: ID!) {
+  organizationProgress(organizationId: $organizationId) {
+    memberId
+    completionPercentage
+    certificationsCount
+  }
+}
+```
+
+### Schéma réseau après correction :
+
+```txt
+Requête unique consolidée :
+GetOrgMembersProgress(orgId: "42")
+[════════════════════════════════] (200 OK - Données de tous les membres en 1 payload)
+```
+
+Un seul aller-retour réseau, zéro mise en attente, affichage instantané du tableau de bord.
+
+---
+
+## 4. Élimination des requêtes redondantes
+
+Un corollaire direct du N+1 est l'accumulation de requêtes redondantes sur une même vue active.
+
+### Le cas des KPIs agrégés :
+Si votre backend expose un endpoint consolidé (par exemple `org_business_kpis`) qui renvoie déjà le nombre de sièges alloués, les quotas restants et la date d'échéance :
+
+| Mauvaise pratique | Bonne pratique |
+| :--- | :--- |
+| Appeler `org_business_kpis` ET lancer en parallèle une requête de détail `orgContract` pour réafficher la même date d'échéance. | Utiliser exclusivement `org_business_kpis`. L'indicateur est déjà calculé et fiable côté serveur. |
+
+Faites toujours confiance aux agrégats serveur : ne recalculez pas et ne refetcher pas en double ce que l'API vous a déjà fourni dans son résumé.
+
+---
+
+## Conclusion & Checklist d'audit
+
+Avant de soumettre un ticket ou une Merge Request contenant du data fetching :
+- [ ] Ouvrez les DevTools, onglet **Network**.
+- [ ] Filtrez sur `graphql` ou `fetch`.
+- [ ] Chargez votre page : voyez-vous plus de 2 ou 3 requêtes simultanées lors du chargement ?
+- [ ] Si vous repérez une cascade de requêtes similaires avec un `id` différent : stoppez immédiatement et basculez vers une requête groupée côté backend.

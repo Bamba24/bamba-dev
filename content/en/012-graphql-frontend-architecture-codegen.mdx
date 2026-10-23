@@ -1,0 +1,146 @@
+---
+title: "Frontend GraphQL: Architecture Setup and GraphQL Code Generator Best Practices"
+description: "Modern Next.js and GraphQL architecture: why GraphQL Code Generator is essential, how to type components from exact query results, and eradicating overfetching."
+tag: "GraphQL"
+publishedAt: "2026-07-10"
+published: true
+time: 7
+---
+
+# Frontend GraphQL: Architecture Setup and GraphQL Code Generator Best Practices
+
+In many frontend projects, integrating GraphQL starts with enthusiasm before turning into a maintenance nightmare: hand-written TypeScript types, silent schema drifts, massive overfetching, and unexpected production crashes.
+
+To build a resilient web application with React and Next.js, establishing an **automated, strictly typed tooling pipeline** is essential.
+
+In this article, we explore building a clean frontend GraphQL architecture based on **GraphQL Code Generator**, the golden rule of query-driven typing, and eliminating overfetching.
+
+---
+
+## 1. Why Manual Typing is a Dangerous Trap
+
+Writing TypeScript interfaces by hand to mirror backend GraphQL types is a common source of runtime bugs:
+
+```typescript
+// ❌ Dangerous: Handcrafted type disconnected from server schema
+interface User {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+}
+```
+
+If the backend renames `firstName` to `givenName` or makes a field nullable, TypeScript cannot warn you. You only discover the issue when production throws an error for real users.
+
+This is where **GraphQL Code Generator (`@graphql-codegen/cli`)** steps in.
+
+---
+
+## 2. The Modern Codegen Pipeline
+
+The core concept is simple: your backend schema is the **single source of truth**. The generator reads this schema alongside your local `.graphql` operations, automatically emitting bulletproof TypeScript types and query hooks.
+
+```txt
+┌─────────────────────────┐       ┌─────────────────────────┐
+│   Backend GraphQL Schema│       │  Local .graphql Files   │
+│ (Single Source of Truth)│       │ (Views & Operations)    │
+└────────────┬────────────┘       └────────────┬────────────┘
+             │                                 │
+             └────────────────┬────────────────┘
+                              ▼
+                ┌───────────────────────────┐
+                │   GraphQL Code Generator  │
+                │     (@graphql-codegen)    │
+                └─────────────┬─────────────┘
+                              ▼
+                ┌───────────────────────────┐
+                │    Generated Types & Hooks│
+                │   (100% typed, zero drift)│
+                └─────────────┬─────────────┘
+                              ▼
+                ┌───────────────────────────┐
+                │      React Components     │
+                │     (Zero any, safe UX)   │
+                └───────────────────────────┘
+```
+
+---
+
+## 3. The Golden Rule: Type on Query Results, NEVER on Schema Root Types
+
+This is the most critical directive in frontend GraphQL engineering:
+
+<Note>
+**Golden Rule:** Never type your component props using root schema types (e.g. `User` or `Organization`). Always type on the specific query result that feeds your component.
+</Note>
+
+### Why is this crucial?
+
+Suppose the root `User` type has 45 fields (addresses, billing settings, login timestamps). Your user avatar card only needs `id`, `name`, and `avatarUrl`.
+
+If you write:
+
+```typescript
+// ❌ Bad practice: depending on entire root entity type
+import { User } from '@/generated/graphql';
+
+interface UserCardProps {
+  user: User; // Expects 45 fields! Forces monster test mocks or "as any"
+}
+```
+
+You create a broken contract: the component asks for 45 fields, while your GraphQL query only requested 3.
+
+### The clean solution:
+
+```typescript
+// ✅ Best practice: index directly into the query result type
+import { GetTeamMembersQuery } from '@/generated/graphql';
+
+type MemberItem = NonNullable<GetTeamMembersQuery['teamMembers']>[number];
+
+interface UserCardProps {
+  user: MemberItem;
+}
+
+export function UserCard({ user }: UserCardProps) {
+  return (
+    <div className="flex items-center gap-3 p-4 rounded-xl border border-border">
+      <img src={user.avatarUrl ?? '/default.png'} alt={user.name} className="h-10 w-10 rounded-full" />
+      <div>
+        <h4 className="font-semibold text-foreground">{user.name}</h4>
+        <span className="text-xs text-muted-foreground">ID: {user.id}</span>
+      </div>
+    </div>
+  );
+}
+```
+
+If you remove a field from your `.graphql` query file, TypeScript immediately pinpoints the exact line where your component was using it.
+
+---
+
+## 4. Drastically Eradicating Overfetching
+
+GraphQL allows clients to request only what is displayed on screen. Avoid querying large nested graphs "just in case":
+
+```graphql
+# users.graphql
+query GetTeamMembers($teamId: ID!) {
+  teamMembers(teamId: $teamId) {
+    id
+    name
+    avatarUrl
+    # Never ask for permissions or billing if it is not rendered on this view!
+  }
+}
+```
+
+---
+
+## Summary
+
+1. **Automate with Codegen**: Never write GraphQL types by hand.
+2. **Strict Component Typing**: Use indexed query types (`Query['field'][number]`).
+3. **Zero Overfetching**: Every byte sent across the network must serve an active UI element.

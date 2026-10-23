@@ -1,0 +1,134 @@
+---
+title: "Construire un système d'import CSV indestructible en Web moderne"
+description: "Résolvez définitivement le calvaire des imports CSV/Excel : gestion des délimiteurs régionaux (; vs ,), normalisation automatique et architecture d'import en 2 temps."
+tag: "Product"
+publishedAt: "2026-08-10"
+published: true
+time: 8
+---
+
+# Construire un système d'import CSV indestructible en Web moderne
+
+Dans la quasi-totalité des logiciels SaaS B2B, l'import en masse de données via un fichier CSV ou Excel est un passage obligé pour l'onboarding des utilisateurs (import d'employés, de catalogue produits, d'écritures comptables).
+
+Pourtant, demandez à n'importe quelle équipe de support client : **c'est invariablement la fonctionnalité qui génère le plus de tickets d'assistance et de frustration.**
+
+Entre les formats de dates exotiques, les délimiteurs régionaux imprévisibles et les crashs serveur causés par un simple guillemet mal fermé, concevoir un import CSV robuste relève souvent du parcours du combattant.
+
+Dans cet article, nous allons concevoir une architecture d'import moderne en deux temps, capable d'absorber n'importe quelle anomalie de fichier sans jamais corrompre votre base de données.
+
+---
+
+## 1. Le cauchemar des locales Excel : Le piège de la virgule vs point-virgule
+
+Le format CSV signifie théoriquement *Comma-Separated Values* (valeurs séparées par des virgules). Mais dans la réalité du terrain :
+
+```txt
+┌──────────────────────────────────────┐       ┌──────────────────────────────────────┐
+│       Standard International         │       │  Export Excel France / Allemagne     │
+│       (Séparateur = Virgule ',')     │       │ (Séparateur = Point-virgule ';')     │
+├──────────────────────────────────────┤       ├──────────────────────────────────────┤
+│ name,email,role                      │       │ nom;email;rôle                       │
+│ John Doe,john@corp.com,Admin         │       │ Jean Dupont;jean@corp.com;Admin      │
+│ Alice Smith,alice@corp.com,Member    │       │ Alice Martin;alice@corp.com;Membre   │
+└──────────────────────────────────────┘       └──────────────────────────────────────┘
+```
+
+### Pourquoi Excel utilise-t-il le point-virgule ?
+Dans les pays francophones et une grande partie de l'Europe continentale, la virgule `,` est le séparateur officiel des décimales (`19,99 €`). Microsoft Excel bascule donc automatiquement le séparateur CSV en point-virgule `;` pour éviter de casser les nombres décimaux !
+
+Si votre backend s'attend strictement à des virgules, une ligne entière devient une seule chaîne géante et l'import échoue lamentablement.
+
+---
+
+## 2. La normalisation transparente dans le navigateur
+
+Au lieu d'envoyer le fichier brut au serveur et de prier, interceptez le fichier dès son dépôt dans le navigateur.
+
+### Détection automatique du séparateur :
+
+```typescript
+// Inspection des premières lignes du fichier
+function detectDelimiter(sampleText: string): string {
+  const commaCount = (sampleText.match(/,/g) || []).length;
+  const semicolonCount = (sampleText.match(/;/g) || []).length;
+  const tabCount = (sampleText.match(/\t/g) || []).length;
+
+  if (semicolonCount > commaCount && semicolonCount > tabCount) return ';';
+  if (tabCount > commaCount && tabCount > semicolonCount) return '\t';
+  return ',';
+}
+```
+
+### Dictionnaire de mapping d'en-têtes tolérant :
+
+Les utilisateurs exportent souvent leurs données depuis des outils en français ou avec des majuscules aléatoires. Automatisez la correspondance :
+
+```typescript
+const HEADER_MAPPINGS: Record<string, string> = {
+  'prénom': 'firstName',
+  'prenom': 'firstName',
+  'first name': 'firstName',
+  'nom': 'lastName',
+  'last name': 'lastName',
+  'e-mail': 'email',
+  'courriel': 'email',
+  'email': 'email',
+  'rôle': 'role',
+  'role': 'role',
+};
+
+function normalizeHeaders(rawHeader: string): string {
+  const clean = rawHeader.toLowerCase().trim();
+  return HEADER_MAPPINGS[clean] || clean;
+}
+```
+
+---
+
+## 3. Le pattern architectural en 2 temps : Preview / Dry-run puis Apply
+
+Ne faites **JAMAIS** un import direct en base de données sans validation préalable. Adoptez le modèle en 2 étapes :
+
+```txt
+Utilisateur dépose le fichier .csv
+                │
+                ▼
+      ┌──────────────────┐
+      │ Parsing Client   │ ──► Détection délimiteur + normalisation en-têtes
+      └─────────┬────────┘
+                │
+                ▼
+┌─────────────────────────────────┐
+│ ÉTAPE 1 : Mutation Dry-Run      │ ──► Aucune écriture en base !
+│ (Validation & Simulation)       │     Vérifie les doublons, formats et quotas de licences
+└───────────────┬─────────────────┘
+                │
+                ▼
+      ┌──────────────────┐
+      │ Écran de Preview │ ──► Affiche : "48 valides, 2 doublons ignorés.
+      │ & Confirmation   │              Quotas de sièges restants : 15"
+      └─────────┬────────┘
+                │ L'utilisateur clique sur « Confirmer l'import »
+                ▼
+┌─────────────────────────────────┐
+│ ÉTAPE 2 : Mutation Apply        │ ──► Transaction SQL atomique finale
+│ (Exécution finale)              │     Insertion en masse sécurisée
+└─────────────────────────────────┘
+```
+
+### Étape 1 : Le Dry-Run (Simulation)
+Le frontend envoie le lot nettoyé à une mutation `simulateCsvImport(rows)`. Le serveur :
+- Vérifie que chaque email est syntaxiquement valide.
+- Vérifie si des emails existent déjà dans l'organisation (doublons).
+- Vérifie si l'organisation dispose d'assez de licences disponibles.
+- Renvoie un rapport complet : `{ validRowsCount: 48, errors: [{ row: 12, reason: 'Format email invalide' }] }`.
+
+### Étape 2 : L'Apply transactionnel
+L'utilisateur voit exactement ce qui va se passer dans un tableau récapitulatif. S'il valide, la mutation finale insère l'ensemble dans une **transaction SQL unique** (`prisma.$transaction()`). Si une erreur imprévue survient, tout est annulé proprement.
+
+---
+
+## Conclusion
+
+Un import de fichier CSV ne doit plus être une roulette russe. En combinant **détection automatique des délimiteurs**, **normalisation tolérante des colonnes** et un **workflow en 2 temps (Preview ➔ Validation)**, vous offrez à vos utilisateurs une expérience fluide et professionnelle tout en protégeant l'intégrité de vos données.

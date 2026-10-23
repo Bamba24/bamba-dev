@@ -1,0 +1,72 @@
+---
+title: "Dashboards & KPIs: Never Confuse Account Status with Real Activity"
+description: "Why showing 100% active users misleads executive decision-makers. Learn how to build honest SaaS metrics that reflect true product adoption."
+tag: "Product"
+publishedAt: "2026-08-05"
+published: true
+time: 6
+---
+
+# Dashboards & KPIs: Never Confuse Account Status with Real Activity
+
+In B2B SaaS applications, analytics dashboards guide strategic decisions for HR managers, team leaders, and executives. However, a widespread design flaw regularly distorts operational realities: **confusing an administrative account status with real user activity**.
+
+A dashboard displaying a 98% adoption rate when the majority of employees have not opened the tool in months sets the stage for severe contract churn.
+
+---
+
+## 1. Administrative Status vs Actual Activity
+
+```txt
+┌────────────────────────────────────────────────────────────────────────┐
+│                   PERSPECTIVE 1: ADMINISTRATIVE STATUS                 │
+│   (SQL: users.status = 'ACTIVE')                                       │
+│   Account is provisioned and not suspended.                            │
+│   => DASHBOARD RESULT: 100% Active!                                   │
+└───────────────────────────────────┬────────────────────────────────────┘
+                                    │ But in reality...
+                                    ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│                     PERSPECTIVE 2: ACTUAL ACTIVITY                     │
+│   (SQL: audit_logs / sessions)                                         │
+│   Last login: 120 days ago. Actions this month: 0.                     │
+│   => OPERATIONAL REALITY: Dormant / Lost User!                         │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+When renewal time arrives, finance departments analyze real usage: only 25% of seats are actively used, resulting in immediate seat reductions or contract cancellation.
+
+---
+
+## 2. The Operational Adoption Funnel
+
+```txt
+[ Purchased Licenses: 100 ]
+         │
+         ▼
+[ Accepted Invites: 92 ]  ───────►  8 pending invitations (action needed)
+         │
+         ▼
+[ Initial Login Completed: 85 ] ──► 7 users stuck in onboarding
+         │
+         ▼
+[ Active in Last 30 Days (MAU): 34 ] ──► 51 dormant users requiring re-engagement!
+```
+
+---
+
+## 3. Recommended Operational Statuses for B2B SaaS
+
+| Status | Exact Definition | Recommended UI Action |
+| :--- | :--- | :--- |
+| **Active** | Logged in and completed a core event in the last 30 days | Green badge: Healthy usage |
+| **Pending Invite** | Invite sent, password not yet created | "Resend Invite" button |
+| **Never Connected** | Account created, zero sessions recorded | Highlight onboarding blocker |
+| **Dormant** | Inactive for over 45 days | Trigger re-engagement workflow |
+| **Suspended** | Deactivated administratively | Reclaim license seat |
+
+---
+
+## Summary
+
+Deliver real value to customers by replacing misleading vanity metrics with **actionable engagement data**.

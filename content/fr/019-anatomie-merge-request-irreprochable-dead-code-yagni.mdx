@@ -1,0 +1,96 @@
+---
+title: "Anatomie d'une Merge Request irréprochable : Éliminer le Dead Code et appliquer YAGNI"
+description: "Passez vos revues de code avec brio : apprenez à traquer le code mort, à appliquer strictement le principe YAGNI et à unifier le langage métier de votre équipe."
+tag: "CleanCode"
+publishedAt: "2026-08-15"
+published: true
+time: 7
+---
+
+# Anatomie d'une Merge Request irréprochable : Éliminer le Dead Code et appliquer YAGNI
+
+Dans une équipe d'ingénierie, la **Merge Request (ou Pull Request)** n'est pas un simple acte administratif avant de pousser du code en production : c'est le principal vecteur de transmission du savoir, de contrôle qualité et de maintien de la vitesse d'itération collective.
+
+Pourtant, beaucoup de développeurs soumettent des revues de code de 2 500 lignes contenant des brouillons inachevés, des composants abandonnés et des fonctionnalités non sollicitées.
+
+Dans cet article, nous allons détailler les trois piliers indispensables pour produire une Merge Request que vos relecteurs et votre Lead Tech adoreront valider.
+
+---
+
+## 1. La traque impitoyable du Dead Code (Code Mort)
+
+Pendant la phase de développement d'un ticket, il est naturel d'explorer plusieurs pistes : créer un composant de test, maquetter un graphique alternatif, ou écrire une fonction utilitaire pour expérimenter.
+
+Le drame commence lorsque ces brouillons sont laissés dans la branche finale :
+
+```txt
+components/
+  ├─ UserTable.tsx             <-- Le vrai composant utilisé en production
+  ├─ UserTableExperimental.tsx <-- Composant orphelin créé mardi à 23h (jamais importé)
+  ├─ OldCardView.tsx           <-- Ancien code conservé "au cas où"
+  └─ utils/
+       └─ customSort.ts        <-- Fonction de 80 lignes jamais appelée
+```
+
+### Pourquoi le Dead Code est toxique :
+
+1. **Bruit cognitif en revue** : Vos collègues perdent un temps précieux à relire, commenter et chercher où est utilisé un fichier qui ne sert à rien.
+2. **Dette de maintenance passive** : Même s'il n'est pas exécuté, ce code mort doit être mis à jour lors des montées de version (migrations TypeScript, breaking changes de bibliothèques).
+3. **Le faux argument de la mémoire** : *"Je le garde au cas où on en aurait besoin plus tard"* ➔ **Git s'en souvient déjà !** L'historique des commits est conçu pour cela.
+
+<Note>
+**Règle d'or :** Aucun fichier ou composant orphelin non importé ne doit être présent dans une Merge Request. Tout artefact d'exploration non retenu dans la vue active finale doit être supprimé avant commit.
+</Note>
+
+---
+
+## 2. Le principe YAGNI : Fuyez les fonctionnalités « surprises »
+
+Le principe **YAGNI** (*You Aren't Gonna Need It* — Vous n'en aurez pas besoin) est l'un des remparts les plus puissants contre la complexité accidentelle.
+
+### L'erreur classique : Le développeur trop zélé
+Le ticket demande : *"Afficher la liste des 10 dernières factures du client."*
+
+Le développeur livre :
+- La liste des 10 factures.
+- Un bouton d'export CSV fait maison avec 200 lignes de parsing.
+- Un sélecteur de colonnes dynamiques avec persistance dans le `localStorage`.
+- Un système de tri multi-colonnes.
+
+### Pourquoi c'est un problème :
+- Le bouton d'export n'a pas été validé par le Product Designer (problèmes d'ergonomie, non-respect de la charte).
+- Ce code non demandé n'a pas de spécification QA (qui teste les cas limites de l'export CSV ?).
+- Chaque ligne de code supplémentaire est une ligne qui peut casser, être maintenue et introduire des failles de sécurité.
+
+**Tenez-vous strictement au périmètre du ticket.** Si vous identifiez une opportunité d'amélioration utile, notez-la et proposez-la dans un ticket dédié au Product Manager.
+
+---
+
+## 3. L'alignement terminologique (Ubiquitous Language)
+
+Le concept d'*Ubiquitous Language* (Langage Omniprésent), issu du Domain-Driven Design (DDD), stipule que les développeurs, les designers et les utilisateurs métier doivent utiliser **exactement les mêmes mots** pour désigner les mêmes concepts.
+
+Regardez ce qui arrive quand ce principe est négligé :
+
+```txt
+Dans le design Figma :     "Pôles"
+Dans l'UI React :          "Départements"
+Dans la base SQL :         "units"
+Dans l'API GraphQL :       "groups"
+```
+
+Cette cacophonie engendre des malentendus permanents, des erreurs de reporting et une confusion totale pour les nouveaux développeurs arrivant dans l'équipe.
+
+**Règle d'alignement :** Si le métier parle d'« Organisations », votre entité s'appelle `Organization`, votre table SQL `organizations`, et vos composants `OrganizationList.tsx`. Pas d'abréviations cryptiques, pas de synonymes approximatifs.
+
+---
+
+## 4. La checklist d'avant-soumission (Self-Review)
+
+Avant de demander une revue de code à vos pairs :
+
+- [ ] **Relisez votre propre diff (git diff)** : Prenez 5 minutes pour relire chaque ligne modifiée. Vous détecterez vous-même 80 % des coquilles.
+- [ ] **Supprimez les logs de débogage** : Zéro `console.log` ou `debugger` résiduel.
+- [ ] **Éliminez le Dead Code** : Aucun fichier non importé.
+- [ ] **Exécutez le build en local** : `pnpm run build` et `npm run type-check` doivent être verts à 100 %.
+- [ ] **Rédigez une description claire** : Quel était le problème ? Quelle est la solution apportée ? Ajoutez une capture d'écran ou un GIF si l'interface a changé.

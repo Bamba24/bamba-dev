@@ -1,0 +1,85 @@
+---
+title: "Building an Indestructible CSV Import System in Modern Web Apps"
+description: "Solve CSV/Excel file import nightmares once and for all: regional delimiter handling (; vs ,), client-side normalization, and 2-phase dry-run architectures."
+tag: "Product"
+publishedAt: "2026-08-10"
+published: true
+time: 8
+---
+
+# Building an Indestructible CSV Import System in Modern Web Apps
+
+In B2B SaaS software, bulk CSV or Excel import is essential for user onboarding (importing employees, product catalogs, or transactions).
+
+Yet, ask any support team: **it is consistently the feature generating the most customer tickets and frustration.**
+
+Between regional delimiters, Excel encoding anomalies, and unclosed quotes, building a resilient CSV importer is notoriously challenging.
+
+In this article, we design an indestructible two-phase import architecture that protects your database integrity.
+
+---
+
+## 1. The Regional Excel Dilemma: Semicolons vs Commas
+
+```txt
+┌──────────────────────────────────────┐       ┌──────────────────────────────────────┐
+│       International Standard         │       │    European / French Excel Export    │
+│       (Separator = Comma ',')        │       │  (Separator = Semicolon ';')         │
+├──────────────────────────────────────┤       ├──────────────────────────────────────┤
+│ name,email,role                      │       │ name;email;role                      │
+│ John Doe,john@corp.com,Admin         │       │ John Doe;john@corp.com;Admin         │
+└──────────────────────────────────────┘       └──────────────────────────────────────┘
+```
+
+In many European locales, the comma `,` is reserved as the decimal separator (`19,99 €`). Excel automatically exports CSV files using semicolons `;`. If your backend expects commas, entire rows are parsed as single mangled strings.
+
+---
+
+## 2. Client-Side Normalization
+
+Intercept files directly in the browser:
+
+```typescript
+function detectDelimiter(sampleText: string): string {
+  const commaCount = (sampleText.match(/,/g) || []).length;
+  const semicolonCount = (sampleText.match(/;/g) || []).length;
+  const tabCount = (sampleText.match(/\t/g) || []).length;
+
+  if (semicolonCount > commaCount && semicolonCount > tabCount) return ';';
+  if (tabCount > commaCount && tabCount > semicolonCount) return '\t';
+  return ',';
+}
+```
+
+Map localized or capitalized column names automatically (`"Prénom"` or `"first_name"` to `firstName`).
+
+---
+
+## 3. The 2-Phase Pattern: Dry-Run Preview then Apply
+
+Never execute direct database writes without prior validation.
+
+```txt
+User drops CSV file
+        │
+        ▼
+Client-side parsing & header normalization
+        │
+        ▼
+Phase 1: Dry-Run Mutation (Simulation)
+Checks schema, detects duplicates, verifies seat quotas. No DB write.
+        │
+        ▼
+Review & Preview Modal
+Displays: "48 valid records, 2 duplicates skipped. Remaining seats: 15"
+        │ User clicks "Confirm Import"
+        ▼
+Phase 2: Apply Mutation
+Atomic transactional bulk insert (rollback on error).
+```
+
+---
+
+## Summary
+
+Combining **auto-detected delimiters**, **tolerant header matching**, and a **two-phase Dry-Run/Apply pattern** turns brittle file uploads into a seamless enterprise workflow.

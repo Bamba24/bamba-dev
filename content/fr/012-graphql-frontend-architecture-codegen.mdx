@@ -1,0 +1,182 @@
+---
+title: "GraphQL Frontend : Comment bien setup son architecture et son Codegen"
+description: "Architecture moderne Next.js et GraphQL : découvrez pourquoi GraphQL Code Generator est indispensable et comment typer vos composants sur le résultat exact des requêtes."
+tag: "GraphQL"
+publishedAt: "2026-07-10"
+published: true
+time: 7
+---
+
+# GraphQL Frontend : Comment bien setup son architecture et son Codegen
+
+Dans beaucoup de projets frontend, la communication avec une API GraphQL commence par de bonnes intentions avant de virer au cauchemar de maintenance : types TypeScript rédigés à la main, désynchronisation silencieuse avec le schéma du serveur, overfetching massif et crashs inattendus en production.
+
+Pour construire une application web pérenne avec React et Next.js, il est fondamental d'établir une **chaîne d'outillage automatisée et strictement typée**.
+
+Dans cet article, nous allons explorer la mise en place d'une architecture frontend GraphQL irréprochable basée sur **GraphQL Code Generator**, la règle d'or du typage ciblé et l'élimination systématique de l'overfetching.
+
+---
+
+## 1. Pourquoi le typage manuel est un piège
+
+Écrire manuellement des interfaces TypeScript pour refléter des objets GraphQL est l'une des sources d'erreurs les plus courantes.
+
+```typescript
+// ❌ Piège : type écrit à la main, déconnecté du schéma backend
+interface User {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+}
+```
+
+Si le backend renomme `firstName` en `givenName` ou rend un champ optionnel, TypeScript ne peut pas vous avertir. Vous ne découvrirez l'erreur qu'au moment de l'exécution, souvent directement chez vos utilisateurs.
+
+C'est ici qu'intervient **GraphQL Code Generator (`@graphql-codegen/cli`)**.
+
+---
+
+## 2. Le pipeline de génération moderne
+
+Le principe de base est simple : le schéma de votre API backend constitue la **source unique de vérité**. Le générateur lit ce schéma ainsi que vos requêtes locales `.graphql`, puis génère automatiquement les types TypeScript et les hooks de requête.
+
+```txt
+┌─────────────────────────┐       ┌─────────────────────────┐
+│   Schéma GraphQL API    │       │ Fichiers .graphql locaux│
+│   (Source de vérité)    │       │   (Vos requêtes / vues) │
+└────────────┬────────────┘       └────────────┬────────────┘
+             │                                 │
+             └────────────────┬────────────────┘
+                              ▼
+                ┌───────────────────────────┐
+                │   GraphQL Code Generator  │
+                │     (@graphql-codegen)    │
+                └─────────────┬─────────────┘
+                              ▼
+                ┌───────────────────────────┐
+                │    Types & Hooks générés  │
+                │   (100 % typés & exacts)  │
+                └─────────────┬─────────────┘
+                              ▼
+                ┌───────────────────────────┐
+                │     Composants React      │
+                │  (Zéro any, zéro drift)   │
+                └───────────────────────────┘
+```
+
+### Configuration type (`codegen.ts`)
+
+```typescript
+import type { CodegenConfig } from '@graphql-codegen/cli';
+
+const config: CodegenConfig = {
+  schema: 'https://api.monprojet.com/graphql',
+  documents: ['src/**/*.graphql'],
+  generates: {
+    './src/generated/graphql.ts': {
+      plugins: [
+        'typescript',
+        'typescript-operations',
+        'typescript-rtk-query' // ou typed-document-node / client preset
+      ],
+      config: {
+        skipTypename: false,
+        maybeValue: 'T | null',
+      },
+    },
+  },
+};
+
+export default config;
+```
+
+---
+
+## 3. La règle d'or : Typer sur le résultat de la query, JAMAIS sur le type racine
+
+C'est sans doute la directive la plus importante en ingénierie GraphQL frontend :
+
+<Note>
+**Règle d'or :** Ne typez jamais vos composants ou vos props sur le type racine complet du schéma (ex: `User` ou `Organization`). Typez toujours sur le résultat précis de la query qui alimente le composant.
+</Note>
+
+### Pourquoi est-ce crucial ?
+
+Considérons un type racine `User` dans le schéma global qui comporte 45 champs (adresses, historiques de connexion, préférences, rôles, etc.). Votre composant de carte d'utilisateur n'a besoin que de `id`, `name` et `avatarUrl`.
+
+Si vous écrivez :
+
+```typescript
+// ❌ Mauvaise pratique : dépendance au type racine complet
+import { User } from '@/generated/graphql';
+
+interface UserCardProps {
+  user: User; // Attend 45 champs ! Oblige à faire des mocks monstrueux ou des "as any"
+}
+```
+
+Vous créez une fausse promesse : le composant exige un objet avec 45 attributs, alors que la requête GraphQL n'en télécharge que 3.
+
+### La bonne pratique :
+
+```typescript
+// ✅ Bonne pratique : extraction directe du type de retour de la requête
+import { GetTeamMembersQuery } from '@/generated/graphql';
+
+// On extrait exactement le sous-type généré pour cet item de liste :
+type MemberItem = NonNullable<GetTeamMembersQuery['teamMembers']>[number];
+
+interface UserCardProps {
+  user: MemberItem;
+}
+
+export function UserCard({ user }: UserCardProps) {
+  return (
+    <div className="flex items-center gap-3 p-4 rounded-xl border border-border">
+      <img src={user.avatarUrl ?? '/default.png'} alt={user.name} className="h-10 w-10 rounded-full" />
+      <div>
+        <h4 className="font-semibold text-foreground">{user.name}</h4>
+        <span className="text-xs text-muted-foreground">ID: {user.id}</span>
+      </div>
+    </div>
+  );
+}
+```
+
+**Bénéfice immédiat :** Si vous retirez un champ de la requête `.graphql`, TypeScript signale instantanément la ligne exacte du composant qui tente d'y accéder.
+
+---
+
+## 4. Élimination drastique de l'overfetching
+
+L'un des plus grands atouts de GraphQL par rapport aux APIs REST traditionnelles est de permettre au client de choisir exactement les données à rapatrier. Pourtant, de nombreux projets tombent dans le travers de requêter des arbres de données géants "au cas où".
+
+| Pratique | Conséquence Réseau & Mémoire | Verdict |
+| :--- | :--- | :--- |
+| **Sélectionner des champs inutilisés** | Payload JSON gonflé, parsing JavaScript ralenti, charge inutile sur la base de données | ❌ Interdit |
+| **Sélectionner uniquement les champs affichés** | Payloads ultralégers, temps de réponse optimaux, cache mémoire minimal | ✅ Recommandé |
+| **Colocaliser les fragments GraphQL** | Chaque sous-composant déclare exactement ses besoins au plus près de son JSX | ✅ Architecture propre |
+
+### Exemple de requête chirurgicale
+
+```graphql
+# users.graphql
+query GetTeamMembers($teamId: ID!) {
+  teamMembers(teamId: $teamId) {
+    id
+    name
+    avatarUrl
+    # Ne demandez JAMAIS 'permissions', 'metadata' ou 'billingInfo' 
+    # si ce n'est pas affiché sur cette vue précise !
+  }
+}
+```
+
+---
+
+## En résumé
+
+1. **Automatisez avec Codegen** : Ne rédigez plus jamais un type GraphQL à la main.
+2. **Typez vos props avec précision** : Utilisez les types indexés de vos queries (`Query['field'][number]`).
+3. **Chassez l'overfetching** : Chaque octet transitant sur le réseau doit avoir sa place sur l'écran actif.

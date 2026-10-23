@@ -1,0 +1,153 @@
+---
+title: "Démystifier le Cache Client (RTK Query / TanStack Query) et le piège du F5"
+description: "Comprenez le fonctionnement interne du cache mémoire en Single Page Application et évitez le bug fatal du rafraîchissement F5 et du deep-linking."
+tag: "React"
+publishedAt: "2026-07-20"
+published: true
+time: 7
+---
+
+# Démystifier le Cache Client (RTK Query / TanStack Query) et le piège du F5
+
+L'avènement des bibliothèques modernes de gestion de données serveur (comme **RTK Query**, **TanStack Query** ou **Apollo Client**) a profondément simplifié le développement React. Fini les actions Redux verbeuses pour stocker manuellement des listes dans un état global.
+
+Cependant, une mauvaise compréhension du cycle de vie de ce cache mémoire entraîne fréquemment l'un des bugs les plus frustrants en production : **le piège du F5 et du Deep Linking**.
+
+Dans cet article, nous allons plonger dans les entrailles du cache client, comprendre la souscription de données et voir pourquoi l'autonomie des composants est une règle absolue.
+
+---
+
+## 1. Comment fonctionne le cache mémoire : Souscription & Déduplication
+
+Contrairement à un `useState` local qui disparaît au démontage d'un composant, les clients de données maintiennent un store en mémoire partagé avec un système de **comptage de références (Reference Counting)**.
+
+Lorsque vous écrivez :
+
+```typescript
+const { data, isLoading } = useGetOrganizationQuery(orgId);
+```
+
+Voici ce qui se passe sous le capot :
+
+```txt
+Composant A (Header)          Composant B (Sidebar)        Composant C (MainView)
+      │                             │                             │
+      ├─► useGetOrganization(42)    ├─► useGetOrganization(42)    ├─► useGetOrganization(42)
+      │                             │                             │
+      └───────────────┬─────────────┴──────────────┬──────────────┘
+                      │                            │
+                      ▼                            ▼
+         ┌───────────────────────────────────────────────────┐
+         │             Gestionnaire de Cache Client          │
+         │  Clé : "getOrganization(42)"                      │
+         │  Souscriptions actives : 3 (A, B, C)              │
+         │  Statut : Déjà en cours de téléchargement         │
+         └─────────────────────────┬─────────────────────────┘
+                                   │
+                                   ▼
+             ┌───────────────────────────────────────────┐
+             │         1 SEULE REQUÊTE RÉSEAU            │
+             │       GET /graphql (orgId: 42)            │
+             └───────────────────────────────────────────┘
+```
+
+### Le miracle de la déduplication
+Même si 5 composants différents situés aux 4 coins de votre arbre React invoquent le même hook avec les mêmes arguments au même instant, **une seule et unique requête HTTP** est envoyée au serveur. 
+
+Tous les composants souscrivent à la même clé de cache et reçoivent simultanément la réponse dès qu'elle arrive.
+
+---
+
+## 2. Le piège fatal : Le syndrome de la fausse optimisation
+
+Voici un scénario classique vécu par de nombreuses équipes de développement :
+
+1. Un développeur conçoit la page `/organizations/[id]`. Cette page appelle `useGetOrganizationQuery(id)`.
+2. Il crée ensuite une sous-page ou un onglet `/organizations/[id]/settings`.
+3. Il se dit : *"Puisque l'utilisateur est obligatoirement passé par la page parente, l'organisation est déjà dans le cache ! Je n'ai donc pas besoin de réappeler le hook ici. Je vais plutôt lire le cache ou me reposer sur un état global intermédiaire."*
+
+### Le drame en production :
+Tout fonctionne parfaitement pendant les tests locaux tant que vous naviguez de lien en lien... jusqu'au jour où un client fait une de ces deux actions :
+
+- Il appuie sur la touche **F5 (Actualiser)** alors qu'il se trouve sur `/organizations/42/settings`.
+- Il envoie l'URL directe par Slack à un collègue (**Deep Linking**).
+
+```txt
+Nouvelle session de navigation (F5 ou Deep Link)
+         │
+         ▼
+Page : /organizations/42/settings
+         │
+         ▼
+Le cache mémoire est 100 % VIERGE !
+Le composant n'a pas déclaré sa requête...
+         │
+         ▼
+💥 CRASH : TypeError: Cannot read properties of undefined (reading 'name')
+            (ou écran blanc / spinner infini)
+```
+
+En rafraîchissant la page, toute la mémoire JavaScript est réinitialisée. Comme la sous-page supposait que la donnée était déjà chargée en amont, l'application s'effondre.
+
+---
+
+## 3. Règle d'or : L'autonomie absolue de chaque vue
+
+Pour construire des applications robustes, appliquez scrupuleusement ce principe :
+
+<Note>
+**Principe d'autonomie :** Chaque page et chaque vue interactive doit être 100 % autonome. Elle doit déclarer explicitement toutes les requêtes nécessaires à son affichage, sans jamais présumer de l'historique de navigation de l'utilisateur.
+</Note>
+
+N'ayez pas peur d'appeler le même hook dans votre sous-page. Si la donnée est déjà en cache, elle sera servie instantanément (en $0\text{ ms}$). Si la page est rechargée directement, elle déclenchera simplement le fetch nécessaire avec son `isLoading` et son skeleton approprié.
+
+---
+
+## 4. Éviter le piège du double cache (Single Source of Truth)
+
+Un autre anti-pattern répandu consiste à copier la donnée issue du cache réseau dans un store Zustand ou Redux manuel :
+
+```typescript
+// ❌ ANTI-PATTERN : Création d'une deuxième source de vérité
+const { data } = useGetOrganizationQuery(orgId);
+
+useEffect(() => {
+  if (data) {
+    // Pourquoi copier cela dans Redux ou Zustand ?
+    dispatch(setGlobalOrgData(data));
+  }
+}, [data]);
+```
+
+### Pourquoi c'est une mauvaise idée :
+- Vous avez maintenant **deux caches concurrents** qui risquent de diverger.
+- Lors d'une mutation (ex: mise à jour du nom de l'organisation), le cache réseau s'invalide mais votre store global manuel conserve l'ancienne donnée.
+- **La solution :** Laissez le cache de votre client de données (RTK Query / TanStack Query) être votre unique source de vérité. Consommez directement les hooks dans vos composants.
+
+---
+
+## 5. Zéro Polling : Rafraîchir proprement via l'invalidation de cache
+
+Certains développeurs ajoutent un `pollingInterval: 3000` pour masquer le fait que l'interface ne se met pas à jour après une action utilisateur.
+
+**C'est une hérésie pour la batterie et vos serveurs.**
+
+Privilégiez toujours l'invalidation explicite de tags :
+
+```typescript
+// Définition de la mutation avec invalidation ciblée
+updateOrganization: build.mutation<Org, UpdateOrgInput>({
+  query: (input) => ({
+    document: UpdateOrganizationDocument,
+    variables: { input },
+  }),
+  // Dès que la mutation réussit, RTK Query refetch automatiquement les vues concernées
+  invalidatesTags: (result, error, { id }) => [{ type: 'Organization', id }],
+}),
+```
+
+---
+
+## Conclusion
+
+Le cache client n'est pas un substitut magique à la conception architecturale. En respectant l'**autonomie des composants**, en fuyant les doubles caches et en maîtrisant les mécanismes de souscription, vous garantissez à vos utilisateurs une navigation fluide, sans aucun crash au rafraîchissement.

@@ -1,0 +1,85 @@
+---
+title: "React Anti-patterns: useEffect, Derived Calculations, and the React Compiler Era"
+description: "Stop copying server data into useState with useEffect! Learn how to compute derived values synchronously and navigate memoization with the React Compiler."
+tag: "React"
+publishedAt: "2026-08-01"
+published: true
+time: 8
+---
+
+# React Anti-patterns: useEffect, Derived Calculations, and the React Compiler Era
+
+In React applications, `useEffect` is both the most popular hook and the most misused. Originally designed for external system synchronization, it is often wrongly treated as a general-purpose data transformer.
+
+With Next.js and the **React Compiler**, copying server state into local state causes unnecessary re-renders and slows down client applications.
+
+---
+
+## 1. The `useEffect` + `useState` Derived State Anti-pattern
+
+```typescript
+// ❌ ANTI-PATTERN: Duplicating state via useEffect
+export function UserList() {
+  const { data: users = [] } = useGetUsersQuery();
+  const [activeUsers, setActiveUsers] = useState<User[]>([]);
+
+  useEffect(() => {
+    const filtered = users.filter((u) => u.isActive);
+    setActiveUsers(filtered);
+  }, [users]);
+
+  return <div>{/* Render activeUsers */}</div>;
+}
+```
+
+### Why this hurts your application:
+1. **Double Rendering & Flickering**: Renders once with empty data, fires the effect after paint, and triggers an immediate second re-render.
+2. **State Desynchronization**: Creates moments where local state lags behind server updates.
+
+### The Clean Solution: Synchronous In-Render Derivation
+
+```typescript
+// ✅ BEST PRACTICE: Compute synchronously during render
+export function UserList() {
+  const { data: users = [] } = useGetUsersQuery();
+
+  const activeUsers = users.filter((u) => u.isActive);
+
+  return <div>{/* Render activeUsers */}</div>;
+}
+```
+
+Filtering an array of hundreds of items in JavaScript takes less than $0.1\text{ ms}$.
+
+---
+
+## 2. Don't Recalculate What the Backend Already Provides
+
+Avoid rebuilding database aggregations in client-side code:
+
+```typescript
+// ❌ Don't compute heavy analytics in the client
+const totalRevenue = invoices.reduce((acc, curr) => acc + curr.amount, 0);
+```
+
+If your backend provides aggregated endpoints or database indexes, trust server aggregates.
+
+---
+
+## 3. The React Compiler & Memoization Costs
+
+With `experimental.reactCompiler: true`, React automatically memoizes function closures and values at compile time.
+
+Even without the compiler, using `useMemo` for trivial operations (concatenating strings, filtering 20 items) costs more in memory allocation and dependency comparisons than recalculating the expression directly!
+
+### When is manual memoization still valid?
+1. Truly expensive algorithms running across thousands of elements.
+2. Preserving referential stability when passing props to heavy components wrapped in `React.memo()`.
+
+---
+
+## Summary
+
+1. Stop using `useEffect` to copy and transform query data.
+2. Compute derived values synchronously on render.
+3. Keep your code simple and let the React Compiler handle granular memoization.
