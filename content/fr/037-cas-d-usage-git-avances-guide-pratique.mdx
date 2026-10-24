@@ -1,0 +1,299 @@
+---
+title: "Guide Pratique des Cas d'Usage Git en Entreprise : De l'Urgence Quotidienne aux Commandes Avancées"
+description: "Maîtrisez les 9 scénarios Git réels du quotidien : amend, soft reset vs revert, cherry-pick, stash avancé, rebase interactif, résolution de conflits, bisect, worktree et reflog."
+tag: "Git"
+publishedAt: "2026-10-24"
+published: true
+time: 20
+---
+
+# Guide Pratique des Cas d'Usage Git en Entreprise : De l'Urgence Quotidienne aux Commandes Avancées
+
+Tout développeur sait exécuter les trois commandes fondamentales : `git add`, `git commit` et `git push`. Mais dès que l'on travaille en équipe sur un projet d'envergure, les situations réelles deviennent bien plus complexes :
+- *« Un bug critique vient de tomber en production alors que j'ai 12 fichiers non terminés sur ma branche, que faire ? »*
+- *« J'ai fait une faute dans mon commit précédent, comment la corriger sans polluer l'historique ? »*
+- *« Une régression est apparue il y a deux semaines parmi 400 commits, comment trouver le coupable sans y passer la nuit ? »*
+- *« J'ai supprimé par erreur une branche avec du travail non poussé, tout est-il perdu ? »*
+
+Ce guide rassemble **les 9 cas d'usage réels les plus fréquents en entreprise**, avec les commandes exactes et les bonnes pratiques pour ne plus jamais craindre de manipuler votre historique Git.
+
+---
+
+```txt
+┌────────────────────────────────────────────────────────────────────────┐
+│                   LES 9 CAS D'USAGE GIT DU QUOTIDIEN                   │
+├──────────────────────────┬─────────────────────────┬───────────────────┤
+│ 1. Corriger dernier commit│ 4. Cherry-pick ciblé    │ 7. Chasse au bug  │
+│    (amend / soft reset)  │    (importer un fix)    │    (git bisect)   │
+│ 2. Annuler sur main      │ 5. Nettoyer historique  │ 8. Multi-tâches   │
+│    (git revert sécurisé) │    (rebase interactif)  │    (git worktree) │
+│ 3. Interruption urgente  │ 6. Gérer les conflits   │ 9. Sauver du code │
+│    (git stash avancé)    │    (rebase sans panique)│    (git reflog)   │
+└──────────────────────────┴─────────────────────────┴───────────────────┘
+```
+
+---
+
+## Cas d'Usage 1 : Modifier ou Annuler son Dernier Commit Local
+
+### Scénario
+Vous venez de commiter vos modifications, mais vous réalisez que vous avez oublié d'inclure un fichier de configuration, ou vous avez laissé une faute de frappe dans le message du commit.
+
+### Solution A : Ajouter le fichier oublié sans créer de nouveau commit
+```bash
+# 1. Indexez le fichier oublié
+git add config/settings.json
+
+# 2. Fusionnez-le directement dans le commit précédent (sans modifier le message)
+git commit --amend --no-edit
+```
+
+### Solution B : Modifier le message du dernier commit
+```bash
+git commit --amend -m "feat(auth): implémentation de la validation par double facteur"
+```
+
+### Solution C : Défaire le commit tout en conservant vos modifications dans l'IDE
+Si vous souhaitez annuler le commit pour réorganiser vos fichiers sans perdre une seule ligne de code :
+```bash
+# Annule le commit mais conserve toutes vos modifications prêtes dans l'index (staging)
+git reset --soft HEAD~1
+```
+
+> **Règle d'or :** N'utilisez `git commit --amend` ou `git reset` que sur des commits **locaux non encore poussés** sur une branche partagée.
+
+---
+
+## Cas d'Usage 2 : Annuler un Commit Déjà Déployé en Production
+
+### Scénario
+Un commit défectueux a été fusionné sur la branche `main` et déployé en production. Vous devez impérativement annuler ces changements.
+
+### Pourquoi `git reset` est interdit ici ?
+Faire un `git reset --hard` sur une branche partagée réécrit l'histoire et casse le référentiel de tous vos collègues, provoquant des conflits majeurs.
+
+### La Solution Propre : `git revert`
+`git revert` crée un **nouveau commit inverse** qui supprime exactement ce que le commit défectueux avait introduit, tout en conservant l'intégrité de l'historique :
+
+```bash
+# Annule proprement le commit spécifié
+git revert a1b2c3d -m "revert: rollback temporaire de la feature de paiement défectueuse"
+
+# Poussez immédiatement le correctif
+git push origin main
+```
+
+---
+
+## Cas d'Usage 3 : Traiter une Urgence en Plein Milieu d'une Tâche (Git Stash Avancé)
+
+### Scénario
+Vous êtes en train de refactoriser un module complexe avec 8 fichiers modifiés et non testés. Votre lead développeur vous demande d'intervenir en urgence pour corriger une coquille sur la branche `main`. Vous ne pouvez ni commiter votre code instable, ni le perdre.
+
+### Les Commandes Clés
+```bash
+# 1. Sauvegardez votre travail en cours avec un libellé clair
+git stash push -m "WIP: refactorisation du panier d'achat"
+
+# 2. Votre répertoire de travail est désormais totalement propre !
+# Vous pouvez changer de branche en toute sérénité :
+git checkout main
+# ... vous faites votre fix urgent, commitez et poussez ...
+
+# 3. Revenez sur votre branche de travail
+git checkout feature/panier
+
+# 4. Restaurez vos fichiers et supprimez la sauvegarde du stash
+git stash pop
+```
+
+### Astuce Avancée : Stasher uniquement certains fichiers
+Si vous voulez stasher uniquement des morceaux précis de votre code de façon interactive :
+```bash
+git stash push -p -m "WIP: uniquement les modifications du contrôleur"
+```
+
+---
+
+## Cas d'Usage 4 : Importer un Commit Spécifique d'une Autre Branche (`cherry-pick`)
+
+### Scénario
+Un collègue a corrigé un bug critique sur sa branche de développement `feature/redesign`. Vous avez absolument besoin de ce correctif sur votre propre branche `feature/api-v2`, mais vous ne voulez surtout pas fusionner toute sa branche (qui contient du code incomplet).
+
+```txt
+Branche Collègue:  ---(A)---(B: Fix Bug)---(C: Code instable)
+                                  │
+                       git cherry-pick B
+                                  ▼
+Votre Branche:     ---(X)---(Y)---(B': Fix appliqué chez vous !)
+```
+
+### La Solution
+```bash
+# 1. Récupérez le hash du commit qui vous intéresse (via git log)
+# 2. Appliquez ce commit unique sur votre branche active :
+git cherry-pick b4c5d6e
+```
+Git rejoue exactement les modifications de ce commit précis sur votre branche courante.
+
+---
+
+## Cas d'Usage 5 : Nettoyer son Historique Avant une Merge Request (Rebase Interactif)
+
+### Scénario
+Pendant 3 jours de développement, vous avez accumulé une dizaine de commits de brouillon : `wip`, `fix typo`, `test`, `encore un fix`. Présenter un tel historique en revue de code ou le fusionner dans `main` est une mauvaise pratique.
+
+### La Solution : `git rebase -i`
+```bash
+# Ouvre l'éditeur interactif pour les 4 derniers commits
+git rebase -i HEAD~4
+```
+
+L'éditeur s'ouvre avec vos 4 commits :
+```txt
+pick 1a2b3c4 feat(cart): ajout de l'interface du panier
+pick 5d6e7f8 fix typo dans le composant
+pick 9a0b1c2 correction des tests unitaires
+pick 3d4e5f6 ajout des styles finaux
+```
+
+Transformez les commits secondaires en **`squash`** (ou `s`) pour les fusionner dans le premier :
+```txt
+pick 1a2b3c4 feat(cart): ajout de l'interface du panier
+squash 5d6e7f8 fix typo dans le composant
+squash 9a0b1c2 correction des tests unitaires
+squash 3d4e5f6 ajout des styles finaux
+```
+
+Enregistrez et quittez : Git fusionne les 4 commits en un **unique commit propre et documenté**.
+
+---
+
+## Cas d'Usage 6 : Résoudre un Conflit de Rebase Sans Paniquer
+
+### Scénario
+Vous lancez `git rebase main` pour mettre à jour votre branche par rapport aux nouveautés de l'équipe, et Git s'arrête brutalement avec un message de conflit : `CONFLICT (content): Merge conflict in src/app.ts`.
+
+### La Méthode pas à pas :
+```bash
+# 1. Ne paniquez pas : vérifiez exactement les fichiers en conflit
+git status
+
+# 2. Ouvrez le fichier dans votre IDE (VS Code, WebStorm) et choisissez les bonnes lignes
+#    <<<<<<< HEAD (Version de main)
+#    =======
+#    >>>>>>> votre-commit (Vos modifications)
+
+# 3. Une fois le conflit résolu dans le fichier, indexez-le :
+git add src/app.ts
+
+# 4. NE FAITES PAS de "git commit" ! Poursuivez simplement le rebase :
+git rebase --continue
+```
+
+> **Sortie de secours :** Si la situation devient trop confuse et que vous voulez annuler le rebase pour revenir exactement à l'état initial :
+> ```bash
+> git rebase --abort
+> ```
+
+---
+
+## Cas d'Usage 7 : Identifier l'Origine d'un Bug parmi 500 Commits (`git bisect`)
+
+### Scénario
+L'application marchait parfaitement lors de la release `v1.2.0` il y a un mois. Aujourd'hui, sur `main`, une fonction critique ne marche plus. Entre-temps, 500 commits ont été fusionnés. Qui a introduit le bug et quand ?
+
+### La Solution : La Recherche Dichotomique Binaire avec `git bisect`
+Au lieu de tester 500 commits un par un, Git teste le milieu mathématique en 9 étapes seulement ($2^9 = 512$) !
+
+```bash
+# 1. Démarrez la recherche
+git bisect start
+
+# 2. Déclarez que la version actuelle est défaillante
+git bisect bad
+
+# 3. Indiquez le tag ou le commit où tout fonctionnait encore
+git bisect good v1.2.0
+
+# 4. Git extrait automatiquement le commit du milieu (commit 250).
+# Vous testez l'application (ou lancez vos tests unitaires).
+# Si ça marche :
+git bisect good
+# Si le bug est présent :
+git bisect bad
+
+# 5. Au bout de quelques vérifications, Git vous affiche le coupable :
+# "a8f3b9c is the first bad commit"
+
+# 6. Quittez la recherche et revenez sur votre branche
+git bisect reset
+```
+
+---
+
+## Cas d'Usage 8 : Travailler sur Deux Branches Simultanément (`git worktree`)
+
+### Scénario
+Vous êtes en train de lancer un build lourd de 15 minutes sur votre branche `feature/migration`. Votre manager vous demande de vérifier immédiatement un comportement sur la branche `staging`.
+
+Habituellement, vous devriez stasher vos fichiers, changer de branche (`git checkout`), attendre que `node_modules` se réindexe, puis refaire l'inverse.
+
+### La Solution : `git worktree`
+`git worktree` permet d'avoir **plusieurs dossiers de travail liés au même dépôt Git local**, chacun pointant sur une branche différente :
+
+```bash
+# Crée un dossier parallèle "hotfix-check" pointant directement sur la branche staging
+git worktree add ../hotfix-check staging
+
+# Vous pouvez désormais ouvrir ce nouveau dossier dans une autre fenêtre d'IDE !
+# Aucun re-clone, aucun conflit de node_modules.
+
+# Une fois la vérification terminée, supprimez l'arbre de travail :
+git worktree remove ../hotfix-check
+```
+
+---
+
+## Cas d'Usage 9 : Sauver du Code Supprimé par Erreur (`git reflog`)
+
+### Scénario
+Vous avez fait une fausse manipulation dramatique : un `git reset --hard` trop agressif ou la suppression accidentelle d'une branche locale non poussée. Votre code semble s'être volatilisé de votre disque dur.
+
+### La Réalité : Dans Git, Rien ne se Perd Immédiatement !
+Git enregistre un journal de bord invisible de **chaque déplacement de la tête de lecture (`HEAD`)** : c'est le **Reflog**. Les commits restent accessibles en mémoire pendant au moins 30 à 90 jours avant que le ramasse-miettes (*Garbage Collector*) ne les purge.
+
+```bash
+# 1. Consultez l'historique complet de tous vos mouvements
+git reflog
+```
+
+Sortie typique :
+```txt
+1a2b3c4 HEAD@{0}: reset: moving to HEAD~2  <-- L'erreur vient d'avoir lieu ici !
+5d6e7f8 HEAD@{1}: commit: feat(user): formulaire d'inscription complet
+9b0c1a2 HEAD@{2}: checkout: moving from main to feature/user
+```
+
+Repérez le hash ou l'index situé juste avant votre erreur (`HEAD@{1}`) et restaurez-le :
+```bash
+# 2. Restaurez votre branche exactement à l'état où elle se trouvait avant l'erreur !
+git reset --hard HEAD@{1}
+```
+Votre code réapparaît instantanément dans votre éditeur.
+
+---
+
+## 📋 Synthèse des Commandes Essentielles
+
+| Besoin Métier | Commande Idéale |
+| :--- | :--- |
+| **Corriger le dernier commit local** | `git commit --amend --no-edit` |
+| **Annuler un commit local sans perdre son code** | `git reset --soft HEAD~1` |
+| **Annuler un commit public sur la prod** | `git revert <commit-hash>` |
+| **Sauvegarder temporairement son travail** | `git stash push -m "description"` |
+| **Importer un commit spécifique d'une autre branche** | `git cherry-pick <commit-hash>` |
+| **Nettoyer et fusionner ses commits de brouillon** | `git rebase -i HEAD~N` |
+| **Trouver l'origine d'un bug dans l'historique** | `git bisect start / bad / good` |
+| **Ouvrir 2 branches en parallèle dans 2 dossiers** | `git worktree add ../chemin branche` |
+| **Récupérer du code accidentellement supprimé** | `git reflog` puis `git reset --hard HEAD@{n}` |
