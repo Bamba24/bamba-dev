@@ -1,0 +1,169 @@
+---
+title: "Server Components, Client Components, and Server Actions: When and How to Use Them in Next.js"
+description: "Demystify Next.js App Router's hybrid paradigm: understand when to use React Server Components, Client Components, or Server Actions."
+tag: "NextJS"
+publishedAt: "2026-09-25"
+published: true
+time: 8
+---
+
+# Server Components, Client Components, and Server Actions: When and How to Use Them in Next.js
+
+Next.js App Router fundamentally redesigned the architecture of modern React applications. Legacy React applications relied on a binary choice: either everything renders in the client browser, or requests bounce through REST API endpoints in `pages/api`.
+
+Modern Next.js organizes applications around **three foundational pillars**:
+
+1. **React Server Components (RSC)**
+2. **Client Components (`'use client'`)**
+3. **Server Actions (`'use server'`)**
+
+In this architectural guide, we clarify the purpose of each building block, demonstrate how they compose seamlessly, and provide concrete decision frameworks.
+
+---
+
+## 1. Architectural Overview
+
+```txt
+┌────────────────────────────────────────────────────────────────────────┐
+│                     NEXT.JS APP ROUTER ARCHITECTURE                    │
+├──────────────────────────┬──────────────────────────┬──────────────────┤
+│ 1. SERVER COMPONENTS     │ 2. CLIENT COMPONENTS     │ 3. SERVER ACTIONS│
+│ (Default Components)     │ ('use client' directive) │ ('use server')   │
+├──────────────────────────┼──────────────────────────┼──────────────────┤
+│ • Node.js server runtime │ • Client browser runtime │ • RPC endpoint   │
+│ • Direct database access │ • useState, useEffect    │ • DB mutations   │
+│ • 0kb client JS bundle   │ • Event listeners        │ • Form actions   │
+│ • Data fetching & SEO    │ • Interactivity & UI     │ • Revalidation   │
+└──────────────────────────┴──────────────────────────┴──────────────────┘
+```
+
+---
+
+## 2. Server Components (RSC): The Default Choice
+
+In Next.js App Router, **every component is a Server Component by default**.
+
+Server Components execute exclusively on the server at request or build time. They render into a serialized Virtual DOM stream and send zero JavaScript runtime bytes to client browsers.
+
+```typescript
+// app/dashboard/page.tsx (Server Component by default)
+import { prisma } from "@/lib/prisma";
+
+export default async function DashboardPage() {
+  const users = await prisma.user.findMany({
+    take: 10,
+    orderBy: { createdAt: "desc" },
+  });
+
+  return (
+    <main>
+      <h1>Recent Users</h1>
+      <ul>
+        {users.map((u) => (
+          <li key={u.id}>{u.name} - {u.email}</li>
+        ))}
+      </ul>
+    </main>
+  );
+}
+```
+
+### When to Use:
+- **Direct Database Queries**: Connect to PostgreSQL, Prisma, or microservices without exposing credentials.
+- **Private Secrets**: Use Stripe, OpenAI, or AWS private API keys safely.
+- **Zero Client Bundle Bloat**: Keep heavy syntax highlighters or markdown parsers on the server.
+
+---
+
+## 3. Client Components: Interactive Islands
+
+To add browser event listeners, stateful animations, or device APIs, add `'use client'` at the very top of your file:
+
+```tsx
+// components/Counter.tsx
+"use client";
+
+import { useState } from "react";
+
+export function Counter() {
+  const [count, setCount] = useState(0);
+
+  return (
+    <button onClick={() => setCount((c) => c + 1)}>
+      Clicked: {count}
+    </button>
+  );
+}
+```
+
+### When to Use:
+- React state & effects: `useState`, `useReducer`, `useEffect`.
+- User interactions: `onClick`, `onChange`, `onKeyDown`, drag-and-drop.
+- Browser APIs: `localStorage`, `window.matchMedia`, geolocation.
+
+<Note>
+**Performance Best Practice:** Push the `'use client'` boundary as far down your component tree as possible. Never convert an entire parent page into a Client Component just because one button needs a click handler.
+</Note>
+
+---
+
+## 4. Server Actions: Frictionless Mutations
+
+A **Server Action** is an asynchronous function marked with `'use server'` that can be invoked directly from HTML forms or client components without manually setting up API route boilerplate:
+
+```typescript
+// actions/users.ts
+"use server";
+
+import { prisma } from "@/lib/prisma";
+import { revalidatePath } from "next/cache";
+
+export async function createUserAction(formData: FormData) {
+  const name = formData.get("name") as string;
+  const email = formData.get("email") as string;
+
+  await prisma.user.create({
+    data: { name, email },
+  });
+
+  revalidatePath("/dashboard");
+}
+```
+
+---
+
+## 5. Composition: Passing Server Components to Client Components
+
+Client components cannot directly import Server Components, but you can pass them as **`children` props**:
+
+```tsx
+// components/Modal.tsx ('use client')
+"use client";
+
+export function Modal({ children }: { children: React.ReactNode }) {
+  return <div className="modal-wrapper">{children}</div>;
+}
+```
+
+```tsx
+// app/page.tsx (Server Component)
+import { Modal } from "@/components/Modal";
+import { DatabaseUserList } from "@/components/DatabaseUserList";
+
+export default function Page() {
+  return (
+    <Modal>
+      {/* DatabaseUserList runs on the server! */}
+      <DatabaseUserList />
+    </Modal>
+  );
+}
+```
+
+---
+
+## Summary
+
+- Use **Server Components** for data fetching, backend security, and reducing JavaScript bundle size.
+- Use **Client Components** strictly where interactivity and browser state are needed.
+- Use **Server Actions** to power forms and database writes with instant cache revalidation.

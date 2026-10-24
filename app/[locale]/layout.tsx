@@ -1,7 +1,8 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter, Oxanium, JetBrains_Mono } from "next/font/google";
 import { ThemeProvider } from "@/components/themeProvider";
 import ProviderLayout from "./provider";
+import PwaRegister from "@/components/PwaRegister";
 import "./globals.css";
 
 const fontSans = Inter({
@@ -23,6 +24,16 @@ const fontMono = JetBrains_Mono({
   display: "swap",
 });
 
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#09090b" },
+  ],
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
+};
+
 export const metadata: Metadata = {
   metadataBase: new URL(
     process.env.NEXT_PUBLIC_SITE_URL || "https://bambadev.com"
@@ -33,6 +44,22 @@ export const metadata: Metadata = {
   },
   description:
     "Engineering, software architecture, TypeScript, Next.js, and modern developer tooling.",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "bamba.dev",
+  },
+  icons: {
+    icon: [
+      { url: "/favicon.ico" },
+      { url: "/icons/icon-192x192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icons/icon-512x512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [
+      { url: "/icons/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
+    ],
+  },
   openGraph: {
     title: "bamba.dev",
     description:
@@ -83,6 +110,7 @@ export default async function RootLayout({
           <div className="noise3 min-h-screen">
             <ProviderLayout params={params}>{children}</ProviderLayout>
           </div>
+          <PwaRegister />
         </ThemeProvider>
       </body>
     </html>

@@ -1,0 +1,118 @@
+---
+title: "Complete n8n Guide: Docker Setup, Webhooks, and Automation Best Practices"
+description: "Learn how to self-host n8n with Docker Compose, build robust webhook-driven workflows, and implement production-grade error handling."
+tag: "DevOps"
+publishedAt: "2026-09-20"
+published: true
+time: 8
+---
+
+# Complete n8n Guide: Docker Setup, Webhooks, and Automation Best Practices
+
+In modern workflow automation, **n8n** has established itself as the leading fair-code, self-hostable alternative to proprietary platforms like Zapier or Make.
+
+By hosting n8n on your own infrastructure, you eliminate per-task execution fees, maintain complete data sovereignty, and run custom JavaScript or Python code directly inside your workflows.
+
+In this guide, we walk through deploying n8n using **Docker Compose**, explain its core data pipeline model, and share best practices for building fault-tolerant automations.
+
+---
+
+## 1. Why Choose n8n over Zapier or Make?
+
+| Feature | Zapier / Make | n8n (Self-Hosted) |
+| :--- | :--- | :--- |
+| **Pricing** | Steep fees per task execution | Completely free on your VPS |
+| **Data Privacy** | Stored on third-party clouds | 100% on your own servers |
+| **Custom Code** | Limited script execution | Native JavaScript & Python runtime |
+| **Portability** | Locked into vendor ecosystem | Export/import workflows via JSON |
+
+---
+
+## 2. Deploying n8n with Docker Compose
+
+```yaml
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: n8n_user
+      POSTGRES_PASSWORD: secret_password_123
+      POSTGRES_DB: n8n_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U n8n_user -d n8n_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:latest
+    restart: always
+    ports:
+      - "5678:5678"
+    environment:
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_HOST=postgres
+      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_DATABASE=n8n_db
+      - DB_POSTGRESDB_USER=n8n_user
+      - DB_POSTGRESDB_PASSWORD=secret_password_123
+      - N8N_HOST=n8n.yourdomain.com
+      - N8N_PROTOCOL=https
+      - WEBHOOK_URL=https://n8n.yourdomain.com/
+      - GENERIC_TIMEZONE=UTC
+    volumes:
+      - n8n_data:/home/node/.n8n
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  n8n_data:
+```
+
+```bash
+docker compose up -d
+```
+
+---
+
+## 3. Core Architectural Concepts in n8n
+
+```txt
+┌──────────────┐       ┌──────────────┐       ┌──────────────┐
+│   TRIGGER    │ ────► │  TRANSFORM   │ ────► │    ACTION    │
+│  (Webhook,   │       │ (Code Node,  │       │(Slack, Email,│
+│   Schedule)  │       │  Filter, Set)│       │ Postgres DB) │
+└──────────────┘       └──────────────┘       └──────────────┘
+```
+
+1. **Triggers**: Webhooks (instant HTTP POST triggers), Schedules (Cron-like intervals), and Polling integrations.
+2. **Data Structure (Arrays of JSON Objects)**: n8n passes items as `[{ json: { id: 1 } }, { json: { id: 2 } }]`. Nodes process every item in the array automatically.
+3. **The Code Node**: Write custom JavaScript logic to format data:
+
+```javascript
+return $input.all().map(item => ({
+  json: {
+    fullName: `${item.json.firstName} ${item.json.lastName}`,
+    processedAt: new Date().toISOString()
+  }
+}));
+```
+
+---
+
+## 4. Production Best Practices
+
+1. **Dedicated Error Trigger Workflows**: Assign an Error Workflow in settings to receive instant alerts (via Slack or email) whenever an execution fails.
+2. **Fixed Encryption Key**: Always set `N8N_ENCRYPTION_KEY` in environment variables so encrypted API credentials can be recovered during server migrations.
+3. **Git Versioning**: Export workflows to JSON files and track changes in private Git repositories.
+
+---
+
+## Summary
+
+With high throughput, zero license lock-in, and full developer control, **n8n** is an essential tool for engineering teams managing integrations, ETL pipelines, and alerting workflows.

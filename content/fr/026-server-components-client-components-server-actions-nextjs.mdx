@@ -1,0 +1,230 @@
+---
+title: "Server Components, Client Components et Server Actions : Quand et comment les utiliser en Next.js"
+description: "Démystifiez le modèle hybride de Next.js App Router : découvrez quand utiliser un React Server Component, un Client Component ou une Server Action."
+tag: "NextJS"
+publishedAt: "2026-09-25"
+published: true
+time: 8
+---
+
+# Server Components, Client Components et Server Actions : Quand et comment les utiliser en Next.js
+
+L'arrivée de l'App Router dans Next.js a profondément redéfini l'architecture des applications React. Alors que les applications d'ancienne génération reposaient sur un modèle binaire (soit tout est rendu côté client, soit tout passe par des routes d'API `pages/api`), Next.js moderne propose une **architecture unifiée en trois piliers** :
+
+1. **Les Server Components (RSC)**
+2. **Les Client Components (`'use client'`)**
+3. **Les Server Actions (`'use server'`)**
+
+Pour beaucoup de développeurs, la frontière entre ces trois concepts reste floue : *"Pourquoi mon bouton ne clique pas dans un Server Component ?"*, *"Puis-je importer un Server Component dans un Client Component ?"*, *"Quand dois-je créer une Server Action plutôt qu'un Route Handler ?"*
+
+Dans ce guide d'architecture, nous allons clarifier le rôle de chaque brique, voir comment elles coopèrent et vous donner des règles de décision claires pour vos projets.
+
+---
+
+## 1. Vue d'ensemble du modèle à 3 piliers
+
+```txt
+┌────────────────────────────────────────────────────────────────────────┐
+│                     NEXT.JS APP ROUTER ARCHITECTURE                    │
+├──────────────────────────┬──────────────────────────┬──────────────────┤
+│ 1. SERVER COMPONENTS     │ 2. CLIENT COMPONENTS     │ 3. SERVER ACTIONS│
+│ (Composants par défaut)  │ (Directive 'use client') │ ('use server')   │
+├──────────────────────────┼──────────────────────────┼──────────────────┤
+│ • Exécution serveur Node │ • Exécution navigateur   │ • Endpoint RPC   │
+│ • Accès direct à la BDD  │ • useState, useEffect    │ • Mutations BDD  │
+│ • 0 octet JS client      │ • Événements (onClick)   │ • Formulaires    │
+│ • Idéal pour l'affichage │ • Idéal pour l'interact. │ • Revalidation   │
+└──────────────────────────┴──────────────────────────┴──────────────────┘
+```
+
+---
+
+## 2. Les Server Components (RSC) : Le choix par défaut
+
+Dans l'App Router, **chaque composant est un Server Component par défaut**, sauf mention explicite contraire.
+
+### Comment ils fonctionnent :
+Les RSC s'exécutent exclusivement sur le serveur Node.js lors du rendu. Le serveur exécute le code, résout les promesses asynchrones, et produit un flux d'affichage optimisé (Virtual DOM sérialisé) envoyé au navigateur.
+
+```typescript
+// app/dashboard/page.tsx (Server Component par défaut)
+import { prisma } from "@/lib/prisma";
+
+export default async function DashboardPage() {
+  // ✅ Requête directe en base de données sans passer par une API intermédiaire
+  const users = await prisma.user.findMany({
+    take: 10,
+    orderBy: { createdAt: "desc" },
+  });
+
+  return (
+    <main>
+      <h1>Derniers Utilisateurs</h1>
+      <ul>
+        {users.map((u) => (
+          <li key={u.id}>{u.name} - {u.email}</li>
+        ))}
+      </ul>
+    </main>
+  );
+}
+```
+
+### Quand utiliser un Server Component ?
+- **Chargement initial de données** : Connexion directe à PostgreSQL, Prisma, MongoDB ou micro-services internes.
+- **Protection des secrets** : Clés d'API privées (Stripe, OpenAI, AWS) qui ne doivent **jamais** fuiter dans le navigateur.
+- **Réduction du bundle JavaScript** : Utilisation de grosses bibliothèques de formatage (ex: `marked`, `shiki`, `moment`) qui restent sur le serveur et n'alourdissent pas la connexion de l'utilisateur.
+
+<Note>
+**Ce qui est interdit dans un Server Component :** Vous ne pouvez pas utiliser les hooks React (`useState`, `useEffect`, `useReducer`), ni attacher d'écouteurs d'événements navigateur (`onClick`, `onChange`), ni accéder aux APIs globales (`window`, `localStorage`, `document`).
+</Note>
+
+---
+
+## 3. Les Client Components : La couche d'interactivité
+
+Pour rendre une interface dynamique et réactive aux gestes de l'utilisateur, vous devez déclarer un **Client Component** en plaçant la directive `'use client'` à la toute première ligne du fichier.
+
+```tsx
+// components/Counter.tsx
+"use client";
+
+import { useState } from "react";
+
+export function Counter() {
+  const [count, setCount] = useState(0);
+
+  return (
+    <button 
+      onClick={() => setCount((c) => c + 1)}
+      className="px-4 py-2 bg-primary text-white rounded-md"
+    >
+      Clics : {count}
+    </button>
+  );
+}
+```
+
+### Quand utiliser un Client Component ?
+- **Gestion d'état local** : `useState`, `useReducer`.
+- **Cycles de vie et effets** : `useEffect`, `useLayoutEffect`.
+- **Interactions utilisateur** : `onClick`, `onChange`, `onSubmit`, drag & drop.
+- **APIs du navigateur** : `window.navigator`, `localStorage`, `matchMedia`, géolocalisation.
+- **Hooks personnalisés** basés sur le contexte ou des bibliothèques clientes (ex: `@tanstack/react-table`, Lucide React avec état).
+
+<Note>
+**Règle d'or de performance :** Poussez la directive `'use client'` au plus près des feuilles interactives de votre arbre de composants. Ne transformez pas toute une page en Client Component simplement parce qu'un bouton a besoin d'un `onClick` !
+</Note>
+
+---
+
+## 4. Les Server Actions : Les mutations sans API REST verbeuse
+
+Une **Server Action** est une fonction asynchrone qui s'exécute côté serveur, mais qui peut être invoquée directement depuis un formulaire HTML ou un Client Component, sans avoir à créer manuellement une route d'API `/api/users/create`.
+
+### Déclaration d'une Server Action :
+
+```typescript
+// actions/users.ts
+"use server";
+
+import { prisma } from "@/lib/prisma";
+import { revalidatePath } from "next/cache";
+
+export async function createUserAction(formData: FormData) {
+  const name = formData.get("name") as string;
+  const email = formData.get("email") as string;
+
+  // Validation & écriture en base
+  await prisma.user.create({
+    data: { name, email },
+  });
+
+  // Invalidation instantanée du cache de la page pour rafraîchir l'affichage
+  revalidatePath("/dashboard");
+}
+```
+
+### Utilisation dans un formulaire :
+
+```tsx
+// components/CreateUserForm.tsx (Client ou Server Component !)
+import { createUserAction } from "@/actions/users";
+
+export function CreateUserForm() {
+  return (
+    <form action={createUserAction} className="flex flex-col gap-3">
+      <input name="name" placeholder="Nom complet" required />
+      <input name="email" type="email" placeholder="Email" required />
+      <button type="submit">Créer l'utilisateur</button>
+    </form>
+  );
+}
+```
+
+### Quand utiliser une Server Action ?
+- **Soumissions de formulaires** (inscriptions, modifications de profil, commentaires).
+- **Mutations de base de données** avec revalidation automatique du cache Next.js (`revalidatePath`, `revalidateTag`).
+- **Mises à jour optimistes** côté client avec le hook React 19 `useOptimistic()`.
+
+---
+
+## 5. Le pattern de composition : Passer un Server Component dans un Client Component
+
+Une question fréquente : *"Si un Client Component ne peut pas importer directement un Server Component, comment puis-je encapsuler un composant serveur dans un layout interactif ?"*
+
+**La solution : La composition via les `children` (Props).**
+
+```tsx
+// components/SidebarClientWrapper.tsx
+"use client";
+
+import { useState } from "react";
+
+export function SidebarClientWrapper({ children }: { children: React.ReactNode }) {
+  const [isOpen, setIsOpen] = useState(true);
+
+  return (
+    <div className="flex">
+      <button onClick={() => setIsOpen(!isOpen)}>Toggle</button>
+      {isOpen && <aside>{children}</aside>}
+    </div>
+  );
+}
+```
+
+```tsx
+// app/layout.tsx (Server Component)
+import { SidebarClientWrapper } from "@/components/SidebarClientWrapper";
+import { HeavyServerDatabaseNav } from "@/components/HeavyServerDatabaseNav";
+
+export default function Layout() {
+  return (
+    <SidebarClientWrapper>
+      {/* Ce composant reste un Server Component évalué sur le serveur ! */}
+      <HeavyServerDatabaseNav />
+    </SidebarClientWrapper>
+  );
+}
+```
+
+---
+
+## 6. Arbre de décision récapitulatif
+
+| Besoin métier | Quel outil utiliser ? |
+| :--- | :--- |
+| Afficher une liste de posts ou produits depuis la BDD | **Server Component** |
+| Gérer un champ de recherche avec autocomplétion | **Client Component** (`'use client'`) |
+| Enregistrer une commande ou supprimer un article | **Server Action** (`'use server'`) |
+| Gérer un thème clair/sombre avec `localStorage` | **Client Component** (`'use client'`) |
+| Lire des variables d'environnement secrètes | **Server Component** ou **Server Action** |
+
+---
+
+## Conclusion
+
+L'architecture moderne de Next.js ne vous oblige pas à choisir entre le client et le serveur : elle vous permet de tirer le meilleur parti des deux mondes. 
+- Laissez les **Server Components** porter le poids du data-fetching et de la sécurité.
+- Réservez les **Client Components** aux îlots d'interactivité nécessaires.
+- Utilisez les **Server Actions** pour fluidifier vos mutations sans friction.

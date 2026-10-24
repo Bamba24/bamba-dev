@@ -1,0 +1,91 @@
+---
+title: "Claude, Claude Cowork, or Claude Code: Which AI Tool Should You Choose?"
+description: "Demystify Anthropic's ecosystem: understand the differences between Claude.ai chat, Claude Cowork project spaces, and Claude Code agentic CLI."
+tag: "IA"
+publishedAt: "2026-09-01"
+published: true
+time: 7
+---
+
+# Claude, Claude Cowork, or Claude Code: Which AI Tool Should You Choose?
+
+Anthropic's ecosystem has expanded rapidly into specialized tools all carrying the "Claude" name. Between the flagship web chat interface at **Claude.ai**, the team workspaces in **Claude Cowork / Claude Projects**, and the autonomous terminal agent **Claude Code**, confusion is common.
+
+Do they use the same underlying models? When should engineers open a terminal CLI rather than a web browser?
+
+In this article, we compare all three interfaces, break down their execution models, and identify optimal workflows for each.
+
+---
+
+## 1. Anthropic Ecosystem Overview
+
+All three tools leverage Anthropic's cutting-edge models (Claude 3.5 Sonnet, Claude 3.7 Sonnet, Haiku, Opus), but their environments, permissions, and execution boundaries differ fundamentally:
+
+```txt
+┌────────────────────────────────────────────────────────────────────────┐
+│                          ANTHROPIC ECOSYSTEM                           │
+└───────────────────────────────────┬────────────────────────────────────┘
+                                    │
+       ┌────────────────────────────┼────────────────────────────┐
+       ▼                            ▼                            ▼
+┌──────────────┐             ┌──────────────┐             ┌──────────────┐
+│  Claude.ai   │             │Claude Cowork │             │ Claude Code  │
+│  (Web Chat)  │             │  (Projects)  │             │ (CLI Agent)  │
+├──────────────┤             ├──────────────┤             ├──────────────┤
+│ Individual   │             │ Cross-team   │             │ Developers & │
+│ chat, general│             │ knowledge    │             │ DevOps, runs │
+│ brainstorming│             │ base, specs, │             │ directly on  │
+│ and research.│             │ shared docs. │             │ local files. │
+└──────────────┘             └──────────────┘             └──────────────┘
+```
+
+---
+
+## 2. Comparing the 3 Environments
+
+### 1. Claude (Claude.ai)
+- **Interface**: Web browser (`claude.ai`), desktop, and mobile apps.
+- **Primary Use**: Writing, document synthesis, data extraction, and conceptual ideation.
+- **Key Features**:
+  - **Artifacts**: Live previews of React components, SVGs, Mermaid diagrams, and interactive web widgets.
+  - Huge context windows (200k tokens).
+  - Computer vision for analyzing screenshots, system architectures, and Figma designs.
+- **Limitations**: Runs in an isolated cloud sandbox. It cannot access local files or execute bash commands directly.
+
+### 2. Claude Cowork (Claude Projects)
+- **Interface**: Collaborative team module inside Claude Team & Enterprise tiers.
+- **Primary Use**: Centralizing organizational memory for product teams and departments.
+- **Key Features**:
+  - **Dedicated Knowledge Bases**: Upload PRDs, architectural decision records, style guides, and API schemas.
+  - **Custom Project Prompts**: Set consistent context and personas for all collaborating team members.
+  - **Shared Artifacts & Chats**: Teams iterate together on shared design systems and specifications.
+
+### 3. Claude Code
+- **Interface**: Command-line interface (`claude` in your terminal).
+- **Primary Use**: Autonomous pair-programming agent capable of inspecting files, running test suites, and creating Git commits.
+- **Key Features**:
+  - **Direct Filesystem Access**: Navigates project directories, parses configs, and edits multiple files in place.
+  - **Terminal Command Execution**: Executes `npm test`, `git status`, or `tsc` and reads stdout/stderr to fix bugs iteratively.
+  - **Model Context Protocol (MCP)**: Native integration with external Postgres databases, GitHub, or internal microservices.
+
+---
+
+## 3. Comparison Matrix
+
+| Feature | Claude (Web) | Claude Cowork (Projects) | Claude Code (CLI) |
+| :--- | :--- | :--- | :--- |
+| **Primary Audience** | General Knowledge Workers | Product & Engineering Teams | Software Engineers |
+| **Environment** | Cloud Browser | Cloud Workspace | Local Terminal / VPS |
+| **Local File Access**| ❌ Manual Upload | ❌ Manual Upload | ✅ Full Read / Write |
+| **Terminal Execution**| ❌ None | ❌ None | ✅ Direct (`npm`, `bash`) |
+| **Artifacts Preview**| ✅ Interactive Sidecar | ✅ Shared Team Panel | ❌ Text Diffs Only |
+| **Project Memory** | Per Conversation | Shared Project Library | Local `CLAUDE.md` File |
+| **Pricing** | Pro ($20/mo) | Team ($30/mo/user) | Token Usage / API Console |
+
+---
+
+## Summary
+
+- Use **Claude.ai** to brainstorm, research, draft documentation, or preview isolated components with Artifacts.
+- Use **Claude Cowork** to align cross-functional teams around shared project knowledge and company guidelines.
+- Use **Claude Code** to build, refactor, debug, and run test suites directly inside your codebase.

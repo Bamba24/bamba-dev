@@ -1,0 +1,150 @@
+---
+title: "Guide Complet : Comment Setup Claude Code et Maîtriser ses Fichiers de Configuration"
+description: "Apprenez à installer Claude Code CLI, à configurer CLAUDE.md, .claudeignore, les serveurs MCP et les permissions pour un environnement de développement augmenté."
+tag: "IA"
+publishedAt: "2026-09-10"
+published: true
+time: 8
+---
+
+# Guide Complet : Comment Setup Claude Code et Maîtriser ses Fichiers de Configuration
+
+**Claude Code** est l'outil en ligne de commande développé par Anthropic qui transforme votre terminal en un atelier de pair-programming autonome. Contrairement aux extensions d'IDE traditionnelles qui se contentent d'autocompléter une ligne, Claude Code analyse l'ensemble de votre dépôt, exécute vos tests, résout les erreurs de typage et gère vos commits Git.
+
+Mais pour tirer le plein potentiel de cet agent sans dérapage ni surcoût en tokens d'API, une **configuration méthodique de votre projet est indispensable**.
+
+Dans ce guide pratique, nous allons voir pas-à-pas comment installer Claude Code, maîtriser le fichier pivot `CLAUDE.md`, configurer `.claudeignore` et connecter des serveurs d'outils via **MCP (Model Context Protocol)**.
+
+---
+
+## 1. Installation & Authentification Initiale
+
+Claude Code est distribué sous forme de paquet exécutable Node.js :
+
+```bash
+# Installation globale recommandée
+npm install -g @anthropic-ai/claude-code
+
+# Vérification de l'installation
+claude --version
+```
+
+### Première connexion :
+Dans votre terminal, naviguez dans un dossier de projet et lancez simplement :
+
+```bash
+claude
+```
+
+Un lien d'autorisation s'ouvre dans votre navigateur pour associer votre compte Anthropic Console. Vous devez disposer d'une clé d'API valide ou d'un compte avec des crédits actifs.
+
+---
+
+## 2. Le cœur du système : Le fichier `CLAUDE.md`
+
+Le fichier `CLAUDE.md` placé à la racine de votre projet est le document le plus important. C'est le **manuel d'instructions** que Claude Code lit au tout début de chaque session.
+
+```txt
+mon-projet/
+  ├── CLAUDE.md          <-- Instructions métier, conventions, commandes
+  ├── .claudeignore      <-- Fichiers à masquer pour économiser les tokens
+  ├── src/
+  └── package.json
+```
+
+### Exemple type d'un `CLAUDE.md` pour un projet Next.js / TypeScript :
+
+```markdown
+# Instructions du Projet (bambaDev Blog)
+
+## Stack Technique
+- Next.js 16 (App Router) + React 19 + TypeScript strict
+- Tailwind CSS v4 + Lucide React
+- i18n via next-international
+
+## Commandes Fréquentes
+- Lancer le serveur local : `npm run dev`
+- Vérifier les types : `npm run type-check`
+- Compiler en production : `npm run build`
+- Linter : `npm run lint`
+
+## Règles d'Architecture et Conventions
+1. Zéro `any` : Utiliser des types stricts. Pour les données d'API, typer sur le résultat exact.
+2. Pas de données dérivées dans useEffect : Calculer les valeurs dérivées de manière synchrone au rendu.
+3. DRY : Réutiliser systématiquement les utilitaires de `lib/utils/`.
+4. Tests & Validation : Toujours exécuter `npm run type-check` après chaque modification de fichier avant de proposer un commit.
+
+## Style de Git Commit
+- Format Conventional Commits : `feat: ...`, `fix: ...`, `refactor: ...`.
+```
+
+<Note>
+**Bonne pratique :** Plus vos commandes de validation (`build`, `test`, `type-check`) sont explicites dans `CLAUDE.md`, plus l'agent sera capable de tester ses propres modifications en autonomie et de corriger ses erreurs avant de vous rendre la main.
+</Note>
+
+---
+
+## 3. Optimisation des tokens : Le fichier `.claudeignore`
+
+Claude Code inspecte votre arborescence pour comprendre le contexte. Si votre projet contient de gros fichiers compilés, des dumps SQL ou des images, votre consommation de tokens d'API risque d'exploser inutilement.
+
+Créez un fichier `.claudeignore` à la racine (fonctionne exactement comme un `.gitignore`) :
+
+```gitignore
+# .claudeignore
+node_modules/
+.next/
+dist/
+build/
+coverage/
+
+# Données volumineuses et logs
+*.log
+*.sqlite
+*.sql
+*.csv
+
+# Fichiers secrets
+.env
+.env.local
+.env.production
+certs/
+```
+
+---
+
+## 4. Étendre les capacités avec le Model Context Protocol (MCP)
+
+L'une des plus grandes forces de Claude Code est sa compatibilité avec les serveurs **MCP**. Grâce à eux, l'agent peut exécuter des requêtes directement sur votre base de données locale ou interagir avec vos outils de monitoring.
+
+```bash
+# Exemple : Connecter un serveur MCP PostgreSQL pour inspecter le schéma SQL
+claude mcp add postgres npx -y @modelcontextprotocol/server-postgres postgresql://user:password@localhost:5432/ma_base
+
+# Vérifier la liste des serveurs configurés
+claude mcp list
+```
+
+---
+
+## 5. Gestion des permissions et modes de sécurité
+
+Par défaut, Claude Code adopte une approche défensive : il vous demande une confirmation interactive avant chaque écriture de fichier ou exécution de commande shell sensible (`rm`, `git push`, script externe).
+
+### Raccourcis et commandes utiles dans l'interface CLI :
+
+| Commande | Action |
+| :--- | :--- |
+| `/cost` | Affiche les dépenses en tokens et le coût financier de la session en cours. |
+| `/compact` | Compresse l'historique de la conversation pour libérer la fenêtre de contexte. |
+| `/clear` | Réinitialise l'historique de chat tout en conservant la session active. |
+| `/help` | Affiche la liste des commandes et outils disponibles. |
+
+---
+
+## Résumé de la checklist de setup
+
+- [ ] Installer le CLI via `npm install -g @anthropic-ai/claude-code`.
+- [ ] Créer un fichier `CLAUDE.md` clair avec la stack, les commandes de test et les règles de code.
+- [ ] Configurer `.claudeignore` pour exclure les répertoires compilés et secrets.
+- [ ] Connecter vos serveurs MCP si vous travaillez avec des bases de données ou des APIs externes.

@@ -1,0 +1,142 @@
+---
+title: "Authentication and Role-Based Access Control (RBAC) with Better Auth in Next.js"
+description: "Discover Better Auth: the modern, strictly typed alternative to NextAuth/Auth.js for handling sessions, signups, credentials, and roles in Next.js."
+tag: "NextJS"
+publishedAt: "2026-09-15"
+published: true
+time: 8
+---
+
+# Authentication and Role-Based Access Control (RBAC) with Better Auth in Next.js
+
+In Next.js and TypeScript applications, setting up authentication has historically been fraught with friction. Between breaking changes in NextAuth/Auth.js and complex App Router session plumbing, developers often struggled to maintain clean, type-safe security layers.
+
+**Better Auth** provides a TypeScript-first authentication solution: clean, modular, and natively compatible with modern ORMs (Prisma, Drizzle, Kysely).
+
+In this article, we implement an authentication system with **Role-Based Access Control (RBAC: Admin, Moderator, User)** in Next.js App Router.
+
+---
+
+## 1. Why Choose Better Auth?
+
+- **End-to-End Type Safety**: Automatic type inference without manual module augmentation (`declare module`).
+- **Built-in RBAC**: Official `admin` plugin for managing roles and access rules out of the box.
+- **ORM Native**: Seamless integration with Prisma, Drizzle, or PostgreSQL adapters.
+- **Secure Sessions**: HttpOnly signed cookie management with hybrid caching.
+
+---
+
+## 2. Server Setup (`lib/auth.ts`)
+
+```typescript
+// lib/auth.ts
+import { betterAuth } from "better-auth";
+import { prismaAdapter } from "better-auth/adapters/prisma";
+import { admin } from "better-auth/plugins";
+import { prisma } from "@/lib/prisma";
+
+export const auth = betterAuth({
+  database: prismaAdapter(prisma, {
+    provider: "postgresql",
+  }),
+  emailAndPassword: {
+    enabled: true,
+  },
+  plugins: [
+    admin({
+      defaultRole: "user",
+      adminRoles: ["admin", "superadmin"],
+    }),
+  ],
+});
+```
+
+---
+
+## 3. Route Handler (`app/api/auth/[...all]/route.ts`)
+
+```typescript
+import { auth } from "@/lib/auth";
+import { toNextJsHandler } from "better-auth/next-js";
+
+export const { GET, POST } = toNextJsHandler(auth);
+```
+
+---
+
+## 4. Client Integration (`lib/auth-client.ts`)
+
+```typescript
+import { createAuthClient } from "better-auth/react";
+import { adminClient } from "better-auth/client/plugins";
+
+export const authClient = createAuthClient({
+  baseURL: process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
+  plugins: [adminClient()],
+});
+
+export const { signIn, signUp, signOut, useSession } = authClient;
+```
+
+---
+
+## 5. Protecting Views by User Role
+
+### Client-Side UI Guard:
+
+```tsx
+"use client";
+
+import { useSession, signOut } from "@/lib/auth-client";
+
+export function UserNav() {
+  const { data: session, isPending } = useSession();
+
+  if (isPending) return <div>Loading...</div>;
+  if (!session) return <a href="/login">Sign in</a>;
+
+  return (
+    <div className="flex items-center gap-4">
+      <span>{session.user.name} ({session.user.role})</span>
+      {session.user.role === "admin" && (
+        <a href="/admin" className="text-amber-500 font-semibold">Admin Panel</a>
+      )}
+      <button onClick={() => signOut()}>Sign out</button>
+    </div>
+  );
+}
+```
+
+### Server-Side Server Component Guard:
+
+```typescript
+import { auth } from "@/lib/auth";
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
+
+export default async function AdminPage() {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+
+  if (!session) {
+    redirect("/login");
+  }
+
+  if (session.user.role !== "admin") {
+    redirect("/unauthorized");
+  }
+
+  return (
+    <main className="p-8">
+      <h1>Secure Admin Dashboard</h1>
+    </main>
+  );
+}
+```
+
+---
+
+## Summary
+
+Combining Next.js App Router with Better Auth provides zero-friction developer experience, HttpOnly cookie security, and out-of-the-box role management.

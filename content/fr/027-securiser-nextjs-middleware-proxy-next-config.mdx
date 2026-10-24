@@ -1,0 +1,221 @@
+---
+title: "Sécuriser Next.js : Configuration du Middleware (Proxy), Headers HTTP et next.config.ts"
+description: "Guide d'ingénierie sécurité pour Next.js : paramétrage de proxy.ts / middleware, Content Security Policy (CSP), headers anti-attaques et protection du composant Image."
+tag: "NextJS"
+publishedAt: "2026-09-30"
+published: true
+time: 8
+---
+
+# Sécuriser Next.js : Configuration du Middleware (Proxy), Headers HTTP et next.config.ts
+
+Next.js offre une excellente expérience de développement et des fonctionnalités modernes prêtes à l'emploi. Cependant, déployer une application Next.js en production avec les réglages par défaut expose votre plateforme à des vulnérabilités classiques : **injections XSS**, **Clickjacking**, **fuite d'en-têtes technologiques** et attaques par **détournement du proxy d'optimisation d'images (SSRF)**.
+
+Pour construire une application digne des standards de sécurité d'entreprise, il est indispensable de maîtriser la configuration conjointe du **Middleware (ou Proxy en Next.js 16)** et de **`next.config.ts`**.
+
+Dans cet article, nous allons passer en revue les en-têtes de sécurité indispensables, blinder la configuration de vos images et mettre en place une interception propre de vos requêtes.
+
+---
+
+## 1. Le Middleware / Proxy : La première ligne de défense
+
+Dans l'architecture de Next.js, le Middleware (nommé `proxy.ts` dans les dernières versions orientées Next.js 16 ou `middleware.ts`) s'exécute **avant même qu'une requête n'atteigne le système de rendu ou les routes d'API**.
+
+```txt
+Requête entrante du client
+            │
+            ▼
+┌─────────────────────────┐
+│  Middleware / Proxy.ts  │  ──► 1. Vérification de session / Token
+│  (Edge / Node Runtime)  │  ──► 2. Détection de bots malveillants
+│                         │  ──► 3. Redirections i18n & Géolocalisation
+└───────────┬─────────────┘
+            │
+            ▼
+┌─────────────────────────┐
+│ Next.js App Router & API│  ──► Rendu Server Components / Route Handlers
+└─────────────────────────┘
+```
+
+### Exemple d'interception et de protection (`proxy.ts` / `middleware.ts`) :
+
+```typescript
+// proxy.ts (ou middleware.ts)
+import { NextResponse, type NextRequest } from "next/server";
+
+export function proxy(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+
+  // 1. Protection contre les accès non autorisés aux zones d'administration
+  if (pathname.startsWith("/admin")) {
+    const sessionToken = request.cookies.get("better-auth.session_token");
+    if (!sessionToken) {
+      const loginUrl = new URL("/login", request.url);
+      loginUrl.searchParams.set("callbackUrl", pathname);
+      return NextResponse.redirect(loginUrl);
+    }
+  }
+
+  // 2. Ajout d'un en-tête de corrélation (Request ID) pour la traçabilité des logs
+  const requestId = crypto.randomUUID();
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set("x-request-id", requestId);
+
+  const response = NextResponse.next({
+    request: {
+      headers: requestHeaders,
+    },
+  });
+
+  return response;
+}
+
+// Exclusion stricte des assets statiques pour ne pas surcharger le runtime
+export const config = {
+  matcher: [
+    "/((?!api/auth|_next/static|_next/image|favicon.ico|icons|robots.txt|manifest.webmanifest).*)",
+  ],
+};
+```
+
+---
+
+## 2. La Forteresse des Headers HTTP dans `next.config.ts`
+
+Les en-têtes HTTP indiquent au navigateur les restrictions strictes à appliquer lors de l'exécution de votre site. Voici les directives indispensables à intégrer dans votre configuration :
+
+### 1. Content Security Policy (CSP)
+La directive la plus puissante contre les attaques Cross-Site Scripting (XSS). Elle définit précisément quelles sources de scripts, styles et polices sont autorisées à s'exécuter.
+
+### 2. X-Frame-Options (Anti-Clickjacking)
+Interdit à des sites tiers d'encapsuler votre application dans une balise `<iframe>` transparente pour piéger les clics de vos utilisateurs.
+
+### 3. X-Content-Type-Options: nosniff
+Empêche le navigateur de deviner (MIME-sniffing) le type de contenu d'un fichier et force le respect strict du `Content-Type` déclaré par le serveur.
+
+### 4. Strict-Transport-Security (HSTS)
+Force le navigateur à communiquer exclusivement via le protocole HTTPS sécurisé pendant au moins un an (`max-age=31536000`).
+
+---
+
+## 3. Sécurité et Optimisation des Images (`next/image`)
+
+Le composant `<Image />` de Next.js intègre un optimiseur d'image côté serveur. Si vous autorisez n'importe quelle source sans restriction, des attaquants peuvent utiliser votre serveur comme un proxy ouvert pour relayer des attaques de déni de service ou explorer votre réseau interne (SSRF : Server-Side Request Forgery).
+
+### La mauvaise pratique (À BANNIR) :
+```typescript
+// ❌ DANGEREUX : Autorise n'importe quel domaine distant !
+images: {
+  domains: ['*'], // N'utilisez JAMAIS ceci en production
+}
+```
+
+### La bonne pratique : `remotePatterns` ultra-stricts
+Définissez explicitement le protocole, le nom d'hôte et le chemin exact des images autorisées :
+
+```typescript
+images: {
+  formats: ['image/avif', 'image/webp'],
+  remotePatterns: [
+    {
+      protocol: 'https',
+      hostname: 'images.unsplash.com',
+      pathname: '/photo-**',
+    },
+    {
+      protocol: 'https',
+      hostname: 'res.cloudinary.com',
+      pathname: '/mon-compte/**',
+    },
+  ],
+}
+```
+
+---
+
+## 4. Modèle Complet de Production : `next.config.ts`
+
+Voici la configuration consolidée prête pour la production :
+
+```typescript
+// next.config.ts
+import type { NextConfig } from "next";
+
+const securityHeaders = [
+  {
+    key: "X-Content-Type-Options",
+    value: "nosniff",
+  },
+  {
+    key: "X-Frame-Options",
+    value: "DENY",
+  },
+  {
+    key: "X-XSS-Protection",
+    value: "1; mode=block",
+  },
+  {
+    key: "Referrer-Policy",
+    value: "strict-origin-when-cross-origin",
+  },
+  {
+    key: "Permissions-Policy",
+    value: "camera=(), microphone=(), geolocation=()",
+  },
+  {
+    key: "Strict-Transport-Security",
+    value: "max-age=63072000; includeSubDomains; preload",
+  },
+];
+
+const nextConfig: NextConfig = {
+  // Masque l'en-tête 'x-powered-by: Next.js' pour ne pas exposer votre stack aux scanners
+  poweredByHeader: false,
+
+  // Active la compression gzip/brotli
+  compress: true,
+
+  // Optimisation sécurisée des images
+  images: {
+    formats: ["image/avif", "image/webp"],
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "images.unsplash.com",
+      },
+    ],
+  },
+
+  // Application des en-têtes de sécurité sur toutes les routes
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: securityHeaders,
+      },
+      {
+        // Cache immuable pour les assets statiques
+        source: "/public/:path*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=31536000, immutable",
+          },
+        ],
+      },
+    ];
+  },
+};
+
+export default nextConfig;
+```
+
+---
+
+## Conclusion
+
+La sécurité d'une application Next.js moderne repose sur deux piliers indissociables :
+1. **Le Middleware / Proxy** pour filtrer, authentifier et tracer les requêtes au plus tôt.
+2. **`next.config.ts`** pour appliquer des headers HTTP défensifs et verrouiller l'optimisation des images distantes.
+
+En appliquant ces directives, vous réduisez drastiquement la surface d'attaque de votre application tout en améliorant sa fiabilité et ses performances.

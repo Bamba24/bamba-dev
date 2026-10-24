@@ -1,7 +1,6 @@
 // locales/fr.ts
 
 export default {
-
   // header
   'header.name': "BambaDev",
   'header.home': "Acceuil",
@@ -10,7 +9,6 @@ export default {
   'header.category': "Categories",
   'header.about': "A propos",
   'header.subscribe': "S'abonner",
-
 
   // Hero Section
   'hero.title': 'bamba',
@@ -36,7 +34,6 @@ export default {
   'post.description': '{description}',
   'post.read_study': 'Lire l\'étude',
   'nav.back_to_home': 'Retour aux articles',
-
 
   // Navigation & Actions
   'nav.back_to_articles': 'Retour aux articles',
@@ -68,4 +65,10 @@ export default {
 
   // Components
   'search.placeholder': 'Rechercher un article...',
+
+  // Offline PWA
+  'offline.title': 'Vous êtes hors-ligne',
+  'offline.description': 'Il semble que vous n\'ayez plus de connexion Internet. Les articles que vous avez déjà consultés restent accessibles hors-connexion grâce au cache.',
+  'offline.retry': 'Réessayer',
+  'offline.back_home': 'Retour à l\'accueil',
 } as const;

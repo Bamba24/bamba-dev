@@ -1,0 +1,142 @@
+---
+title: "Securing Next.js: Middleware (Proxy) Configuration, HTTP Headers, and next.config.ts"
+description: "A production security guide for Next.js: configuring proxy.ts / middleware, Content Security Policy (CSP), anti-exploit headers, and image optimizer safety."
+tag: "NextJS"
+publishedAt: "2026-09-30"
+published: true
+time: 8
+---
+
+# Securing Next.js: Middleware (Proxy) Configuration, HTTP Headers, and next.config.ts
+
+Next.js provides an exceptional developer experience out of the box. However, deploying applications to production with default configurations leaves them exposed to common web vulnerabilities: **Cross-Site Scripting (XSS)**, **Clickjacking**, **tech stack leakage**, and **Server-Side Request Forgery (SSRF) via unconstrained image optimizers**.
+
+To meet enterprise security standards, engineers must master the coordinated configuration of **Middleware (Proxy in Next.js 16)** and **`next.config.ts`**.
+
+In this article, we implement defense-in-depth security headers, harden image optimizations, and configure early request filtering.
+
+---
+
+## 1. Middleware / Proxy: The First Line of Defense
+
+Next.js Middleware (`proxy.ts` in Next.js 16 or `middleware.ts`) intercepts incoming requests **before they hit the rendering engine or API route handlers**:
+
+```txt
+Incoming Client Request
+            │
+            ▼
+┌─────────────────────────┐
+│  Middleware / Proxy.ts  │  ──► 1. Session verification & auth guards
+│  (Edge / Node Runtime)  │  ──► 2. Bot mitigation & IP checks
+│                         │  ──► 3. i18n routing & localization
+└───────────┬─────────────┘
+            │
+            ▼
+┌─────────────────────────┐
+│ Next.js App Router & API│  ──► Server Components & Route Handlers
+└─────────────────────────┘
+```
+
+```typescript
+// proxy.ts (or middleware.ts)
+import { NextResponse, type NextRequest } from "next/server";
+
+export function proxy(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+
+  if (pathname.startsWith("/admin")) {
+    const sessionToken = request.cookies.get("better-auth.session_token");
+    if (!sessionToken) {
+      const loginUrl = new URL("/login", request.url);
+      loginUrl.searchParams.set("callbackUrl", pathname);
+      return NextResponse.redirect(loginUrl);
+    }
+  }
+
+  const requestId = crypto.randomUUID();
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set("x-request-id", requestId);
+
+  return NextResponse.next({
+    request: { headers: requestHeaders },
+  });
+}
+
+export const config = {
+  matcher: [
+    "/((?!api/auth|_next/static|_next/image|favicon.ico|icons|robots.txt|manifest.webmanifest).*)",
+  ],
+};
+```
+
+---
+
+## 2. Hardening Security Headers in `next.config.ts`
+
+- **Content Security Policy (CSP)**: Restricts script, style, and font origins to prevent malicious code execution.
+- **X-Frame-Options (`DENY`)**: Blocks malicious sites from embedding your app in transparent `<iframe>` tags (Clickjacking).
+- **X-Content-Type-Options (`nosniff`)**: Disables MIME-type sniffing, preventing attacks where user-uploaded files are executed as scripts.
+- **Strict-Transport-Security (HSTS)**: Enforces TLS/HTTPS connections for all future requests.
+
+---
+
+## 3. Securing Image Optimizations (`next/image`)
+
+Next.js optimizes remote images server-side. Unrestricted wildcard domains (`*`) allow attackers to use your server as an open proxy for SSRF attacks.
+
+Always restrict image domains using strict `remotePatterns`:
+
+```typescript
+images: {
+  formats: ['image/avif', 'image/webp'],
+  remotePatterns: [
+    {
+      protocol: 'https',
+      hostname: 'images.unsplash.com',
+      pathname: '/photo-**',
+    },
+  ],
+}
+```
+
+---
+
+## 4. Production-Ready `next.config.ts`
+
+```typescript
+import type { NextConfig } from "next";
+
+const securityHeaders = [
+  { key: "X-Content-Type-Options", value: "nosniff" },
+  { key: "X-Frame-Options", value: "DENY" },
+  { key: "X-XSS-Protection", value: "1; mode=block" },
+  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+  { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
+];
+
+const nextConfig: NextConfig = {
+  poweredByHeader: false,
+  compress: true,
+  images: {
+    formats: ["image/avif", "image/webp"],
+    remotePatterns: [
+      { protocol: "https", hostname: "images.unsplash.com" },
+    ],
+  },
+  async headers() {
+    return [
+      { source: "/:path*", headers: securityHeaders },
+      { source: "/public/:path*", headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }] },
+    ];
+  },
+};
+
+export default nextConfig;
+```
+
+---
+
+## Summary
+
+Combining **early request filtering in Middleware** with **strict defensive HTTP headers in `next.config.ts`** fortifies your application against common web vectors while optimizing asset delivery.

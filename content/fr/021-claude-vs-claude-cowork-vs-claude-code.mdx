@@ -1,0 +1,114 @@
+---
+title: "Claude, Claude Cowork ou Claude Code : Quel outil choisir et pour quel usage ?"
+description: "Démystifiez la galaxie d'Anthropic : découvrez les différences concrètes entre l'interface web Claude, les espaces collaboratifs Claude Cowork et l'agent terminal Claude Code."
+tag: "IA"
+publishedAt: "2026-09-01"
+published: true
+time: 7
+---
+
+# Claude, Claude Cowork ou Claude Code : Quel outil choisir et pour quel usage ?
+
+L'accélération fulgurante de l'écosystème d'Anthropic a donné naissance à une gamme d'outils complémentaires qui portent tous le nom de « Claude ». Entre l'interface de conversation classique **Claude.ai**, les espaces collaboratifs **Claude Cowork / Claude Projects**, et le puissant outil en ligne de commande pour développeurs **Claude Code**, la confusion est fréquente.
+
+S'agit-il des mêmes modèles d'IA ? Pourquoi utiliser un outil en ligne de commande plutôt qu'une fenêtre de chat ? Comment une équipe technique et produit doit-elle s'organiser ?
+
+Dans cet article, nous allons comparer ces trois déclinaisons, décortiquer leur architecture et vous aider à choisir le bon outil pour chaque tâche.
+
+---
+
+## 1. Vue d'ensemble de la galaxie Claude
+
+Tous ces outils reposent sur la même famille de modèles de pointe développés par Anthropic (Claude 3.5 Sonnet, Claude 3.7 Sonnet, Claude Haiku, Claude Opus), mais leurs interfaces, leurs contextes d'exécution et leurs permissions sont radicalement différents :
+
+```txt
+┌────────────────────────────────────────────────────────────────────────┐
+│                        LA FAMILLE ANTHROPIC                            │
+└───────────────────────────────────┬────────────────────────────────────┘
+                                    │
+       ┌────────────────────────────┼────────────────────────────┐
+       ▼                            ▼                            ▼
+┌──────────────┐             ┌──────────────┐             ┌──────────────┐
+│  Claude.ai   │             │Claude Cowork │             │ Claude Code  │
+│  (Chat Web)  │             │  (Projects)  │             │ (Agent CLI)  │
+├──────────────┤             ├──────────────┤             ├──────────────┤
+│ Utilisateur  │             │ Équipes &    │             │ Développeurs │
+│ individuel,  │             │ collaboration│             │ & ingénieurs,│
+│ brainstorming│             │ multi-rôles, │             │ exécution    │
+│ & questions  │             │ base de doc  │             │ locale dans  │
+│ ponctuelles. │             │ partagée.    │             │ le terminal. │
+└──────────────┘             └──────────────┘             └──────────────┘
+```
+
+---
+
+## 2. Décryptage des 3 environnements
+
+### 1. Claude (Claude.ai) : L'assistant conversationnel grand public & pro
+- **Interface** : Web (`claude.ai`), application desktop et mobile.
+- **Rôle principal** : Assistant d'écriture, de synthèse documentaire, d'analyse de données et d'exploration conceptuelle.
+- **Fonctionnalités phares** :
+  - **Artifacts** : Rendu en direct de code React, SVG, diagrammes Mermaid ou documents interactifs dans un panneau latéral dédié.
+  - Fenêtre de contexte géante (200k tokens).
+  - Vision par ordinateur (analyse de captures d'écran, schémas d'architecture et maquettes Figma).
+- **Limites** : Claude.ai s'exécute dans un bac à sable isolé dans le cloud. Il ne peut pas toucher à vos fichiers locaux, ni exécuter de commandes dans votre terminal.
+
+### 2. Claude Cowork / Claude Projects : L'espace d'équipe partagé
+- **Interface** : Module collaboratif intégré à Claude Team & Enterprise.
+- **Rôle principal** : Centraliser la mémoire organisationnelle d'un projet, d'un produit ou d'un département.
+- **Fonctionnalités phares** :
+  - **Base de connaissances dédiée** : Importez vos spécifications produit (PRD), conventions de code d'entreprise, guides de style et documentation API.
+  - **Instructions de projet sur-mesure** : Définissez le rôle, les contraintes et le persona que Claude doit adopter pour tous les membres de l'équipe travaillant sur ce projet.
+  - **Partage de conversations & d'Artifacts** : Les coéquipiers peuvent itérer ensemble sur les mêmes livrables.
+
+### 3. Claude Code : L'agent autonome dans votre terminal
+- **Interface** : Terminal de commande (`claude` via CLI).
+- **Rôle principal** : Pair-programmer autonome capable de lire votre codebase, d'éditer des fichiers, de lancer vos tests et de créer vos commits Git.
+- **Fonctionnalités phares** :
+  - **Accès direct au système de fichiers** : Claude Code navigue dans votre projet local, inspecte l'arborescence et comprend vos dépendances.
+  - **Exécution de commandes shell** : Il exécute lui-même `npm test`, `git status`, `tsc --noEmit` et interprète les erreurs en temps réel pour s'auto-corriger.
+  - **Support du Model Context Protocol (MCP)** : Connexion à vos bases de données Postgres, à GitHub ou à vos outils internes.
+
+---
+
+## 3. Matrice comparative détaillée
+
+| Critère | Claude (Web) | Claude Cowork (Projects) | Claude Code (CLI) |
+| :--- | :--- | :--- | :--- |
+| **Cible principale** | Tous professionnels / Devs | Équipes produit & tech | Développeurs & DevOps |
+| **Environnement** | Navigateur Cloud | Navigateur Cloud d'équipe | Terminal local (Machine / VPS) |
+| **Accès aux fichiers locaux** | ❌ Manuel (Upload) | ❌ Manuel (Base de projet) | ✅ Direct (Lecture / Écriture) |
+| **Exécution de scripts / tests**| ❌ Impossible | ❌ Impossible | ✅ Automatique (`npm`, `bash`) |
+| **Visualisation d'Artifacts** | ✅ Oui (Panneau interactif) | ✅ Oui (Partagé) | ❌ Non (Sortie texte / diffs) |
+| **Contexte persistant** | Par conversation | Par projet d'équipe | Via fichier `CLAUDE.md` local |
+| **Facturation** | Claude Pro (20$/mois) | Claude Team (30$/mois/user) | Facturation API (Tokens / Console) |
+
+---
+
+## 4. Comment les combiner dans un workflow moderne ?
+
+Les trois outils ne s'excluent pas ; ils forment une chaîne de valeur continue :
+
+```txt
+1. CADRAGE & CONCEPTION (Claude.ai / Cowork)
+   - Le Product Manager rédige la spécification avec Claude.ai.
+   - La spec et l'architecture sont stockées dans le projet Claude Cowork partagé.
+                │
+                ▼
+2. PROTOTYPAGE VISUEL (Claude Artifacts)
+   - L'équipe valide le composant UI sous forme d'Artifact interactif.
+                │
+                ▼
+3. IMPLÉMENTATION & TESTS (Claude Code)
+   - Le développeur ouvre son terminal et lance :
+     $ claude "Implémente le composant selon les specs et fais passer les tests unitaires"
+   - Claude Code écrit le code, lance les tests Jest et valide le commit.
+```
+
+---
+
+## Conclusion
+
+- Choisissez **Claude.ai** pour rédiger, réfléchir, explorer des idées ou prototyper un composant isolé grâce aux Artifacts.
+- Choisissez **Claude Cowork** pour aligner une équipe entière autour d'une base de documentation et de conventions partagées.
+- Choisissez **Claude Code** pour coder, refactoriser, débugger et exécuter des tâches techniques complexes directement sur votre machine.

@@ -1,0 +1,122 @@
+---
+title: "Complete Guide: Setting Up Claude Code and Mastering Configuration Files"
+description: "Learn how to install Claude Code CLI, configure CLAUDE.md, .claudeignore, MCP tool servers, and permissions for an augmented development workflow."
+tag: "IA"
+publishedAt: "2026-09-10"
+published: true
+time: 8
+---
+
+# Complete Guide: Setting Up Claude Code and Mastering Configuration Files
+
+**Claude Code** is Anthropic's agentic command-line interface that brings autonomous coding capabilities directly into your terminal. Rather than simple snippet generation, Claude Code understands repository context, runs your test suites, fixes type errors, and prepares Git commits.
+
+To harness its full potential without token waste or unintended commands, **configuring project settings properly is essential**.
+
+In this guide, we walk through installing Claude Code, authoring `CLAUDE.md`, setting up `.claudeignore`, and integrating tools via **Model Context Protocol (MCP)**.
+
+---
+
+## 1. Installation & Authentication
+
+```bash
+# Global installation
+npm install -g @anthropic-ai/claude-code
+
+# Check version
+claude --version
+```
+
+Navigate to your project repository and launch:
+
+```bash
+claude
+```
+
+Your browser opens to authorize access using your Anthropic Console account and API keys.
+
+---
+
+## 2. The Core Configuration: `CLAUDE.md`
+
+`CLAUDE.md` at your repository root is the most vital file in the setup. Claude Code automatically reads it at the beginning of each session:
+
+```markdown
+# Project Instructions (bambaDev Blog)
+
+## Tech Stack
+- Next.js 16 (App Router) + React 19 + Strict TypeScript
+- Tailwind CSS v4 + Lucide React
+- i18n via next-international
+
+## Common Commands
+- Development server: `npm run dev`
+- Type checking: `npm run type-check`
+- Production build: `npm run build`
+- Linter: `npm run lint`
+
+## Architecture Rules & Conventions
+1. Strict TypeScript: Zero `any`. Always type on specific query results.
+2. No derived state in useEffect: Compute derived values synchronously in render.
+3. DRY: Always reuse utilities from `lib/utils/`.
+4. Testing: Run `npm run type-check` after modifying files before proposing commits.
+
+## Git Commit Style
+- Conventional Commits: `feat: ...`, `fix: ...`, `refactor: ...`.
+```
+
+---
+
+## 3. Token Optimization: `.claudeignore`
+
+Claude Code inspects your project directory. To avoid sending large compiled artifacts or secrets into the context window, configure `.claudeignore`:
+
+```gitignore
+node_modules/
+.next/
+dist/
+coverage/
+
+*.log
+*.sqlite
+*.sql
+*.csv
+
+.env
+.env.local
+.env.production
+```
+
+---
+
+## 4. Expanding Capabilities with MCP (Model Context Protocol)
+
+Connect external tool servers such as PostgreSQL or GitHub:
+
+```bash
+# Add a local Postgres MCP server
+claude mcp add postgres npx -y @modelcontextprotocol/server-postgres postgresql://user:password@localhost:5432/my_database
+
+# List configured servers
+claude mcp list
+```
+
+---
+
+## 5. Security & Useful CLI Commands
+
+| Command | Action |
+| :--- | :--- |
+| `/cost` | Displays token usage and total session financial cost. |
+| `/compact` | Compresses conversation history to free context window space. |
+| `/clear` | Clears active conversation memory while keeping the session open. |
+| `/help` | Shows available commands and tool descriptions. |
+
+---
+
+## Summary Checklist
+
+- [ ] Install CLI via `npm install -g @anthropic-ai/claude-code`.
+- [ ] Add `CLAUDE.md` with stack info, validation commands, and conventions.
+- [ ] Add `.claudeignore` to protect secrets and avoid token bloat.
+- [ ] Add MCP servers for database and external API integrations.

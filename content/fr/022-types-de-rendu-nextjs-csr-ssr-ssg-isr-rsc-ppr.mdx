@@ -1,0 +1,143 @@
+---
+title: "Les Types de Rendu en Next.js : Du CSR au SSR, SSG, ISR, RSC et PPR"
+description: "Guide exhaustif sur les stratégies de rendu en Next.js moderne : comprenez quand utiliser le rendu statique, dynamique, incrémental ou partiel (PPR)."
+tag: "NextJS"
+publishedAt: "2026-09-05"
+published: true
+time: 8
+---
+
+# Les Types de Rendu en Next.js : Du CSR au SSR, SSG, ISR, RSC et PPR
+
+L'une des plus grandes forces de Next.js est sa capacité à combiner différentes stratégies de rendu au sein d'une seule et même application. Mais entre les acronymes historiques (**CSR**, **SSR**, **SSG**, **ISR**) et les innovations de l'App Router (**RSC**, **Streaming**, **PPR**), il est facile de s'y perdre.
+
+Choisir le bon type de rendu conditionne directement vos performances (**Core Web Vitals**), votre référencement naturel (**SEO**) et les coûts de vos serveurs d'hébergement.
+
+Dans ce guide complet, nous allons décortiquer chaque modalité de rendu avec schémas à l'appui et un arbre de décision pour vos projets.
+
+---
+
+## 1. La chronologie des modes de rendu
+
+```txt
+┌────────────────────────────────────────────────────────────────────────┐
+│                        ÉVOLUTION DU RENDU WEB                          │
+├──────────────────┬───────────────────┬─────────────────────────────────┤
+│ CSR (React pur)  │ SSG / SSR (Pages) │ RSC & PPR (App Router moderne)  │
+│ 100% navigateur  │ Build time ou     │ Hybride serveur/client avec     │
+│ bundle lourd     │ Requête serveur   │ streaming et prerendering ciblé │
+└──────────────────┴───────────────────┴─────────────────────────────────┘
+```
+
+---
+
+## 2. Définitions et fonctionnement de chaque mode
+
+### 1. CSR (Client-Side Rendering)
+- **Le principe** : Le serveur renvoie un fichier HTML quasi vide (`<div id="root"></div>`) accompagné d'un gros bundle JavaScript. C'est le navigateur du visiteur qui télécharge, exécute le script et génère le DOM.
+- **Quand l'utiliser** : Tableaux de bord privés protégés par authentification, outils SaaS interactifs (Figma, Trello) où le SEO n'a aucun impact.
+- **En Next.js** : Directive `'use client'` au sommet d'un composant utilisant `useState` ou `useEffect`.
+
+### 2. SSG (Static Site Generation / Prerendering)
+- **Le principe** : Les pages HTML et les données sont générées **une seule fois, au moment du build (`npm run build`)**. Les fichiers résultants sont stockés sur un CDN mondial et servis en quelques millisecondes.
+- **Quand l'utiliser** : Blogs, sites vitrines, documentation, pages marketing qui ne changent pas à chaque seconde.
+- **En Next.js** : Comportement par défaut des Server Components dans l'App Router, combiné à `generateStaticParams()`.
+
+```typescript
+// app/[locale]/posts/[slug]/page.tsx
+export const dynamic = 'force-static';
+
+export async function generateStaticParams() {
+  const posts = await getPosts();
+  return posts.map((p) => ({ slug: p.slug }));
+}
+```
+
+### 3. SSR (Server-Side Rendering / Dynamic Rendering)
+- **Le principe** : Le HTML est calculé sur le serveur **à chaque requête HTTP entrante**. L'utilisateur reçoit une page immédiatement lisible avec les données les plus fraîches.
+- **Quand l'utiliser** : Pages dépendantes de données utilisateur en temps réel (panier d'achat, fil d'actualité personnalisé, recherche filtrée via cookies ou headers).
+- **En Next.js** : S'active automatiquement dès l'utilisation de fonctions dynamiques (`cookies()`, `headers()`, ou `searchParams`).
+
+```typescript
+import { cookies } from 'next/headers';
+
+export default async function ProfilePage() {
+  const cookieStore = await cookies();
+  const token = cookieStore.get('token');
+  const user = await fetchUser(token);
+  return <div>Bienvenue {user.name}</div>;
+}
+```
+
+### 4. ISR (Incremental Static Regeneration)
+- **Le principe** : Le meilleur des deux mondes. Vous servez une page statique ultra-rapide issue du CDN, tout en permettant à Next.js de la reconstruire silencieusement en arrière-plan après un délai défini (`revalidate`).
+- **Quand l'utiliser** : Sites e-commerce à fort catalogue, blogs d'actualités avec mises à jour fréquentes.
+
+```typescript
+// Revalide la page statique en arrière-plan toutes les heures
+export const revalidate = 3600;
+```
+
+---
+
+## 3. L'ère moderne : RSC, Streaming et PPR
+
+### Les React Server Components (RSC)
+Introduits nativement dans l'App Router, les Server Components ne téléchargent **aucun octet de JavaScript côté client**. Ils s'exécutent exclusivement sur le serveur Node.js, peuvent interroger directement votre base de données SQL ou vos micro-services, et n'envoient au navigateur qu'un flux d'instructions d'affichage optimisé.
+
+### Le Streaming SSR (Suspense)
+Au lieu d'attendre que la page entière soit prête pour renvoyer le premier octet, le serveur commence par streamer le squelette statique (Header, layout), puis injecte les blocs de données lentes au fur et à mesure grâce à `<Suspense>`.
+
+```tsx
+<Suspense fallback={<ProductSkeleton />}>
+  <SlowReviewsSection productId={id} />
+</Suspense>
+```
+
+### Le PPR (Partial Prerendering)
+Le PPR combine le statique et le dynamique sur une seule URL sans compromis :
+- Le squelette extérieur (Header, Footer, sidebar) est généré en **statique (SSG)** et servi instantanément via CDN.
+- Les zones dynamiques encapsulées dans `<Suspense>` (ex: statut de connexion, panier d'achat) sont streamées en **dynamique (SSR)** par le serveur.
+
+```txt
+┌────────────────────────────────────────────────────────┐
+│ [SSG CDN Instantané] HEADER & NAVIGATION               │
+├──────────────────────────┬─────────────────────────────┤
+│ [SSG CDN] DESCRIPTION    │ [SSR Streamé] PANIER &      │
+│ DU PRODUIT               │ PRIX PERSONNALISÉ           │
+│                          │ (<Suspense fallback=...>)   │
+├──────────────────────────┴─────────────────────────────┤
+│ [SSG CDN Instantané] FOOTER & LIENS LÉGAUX             │
+└────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 4. Tableau comparatif des modes de rendu
+
+| Stratégie | Moment du rendu | Vitesse TTFB | Impact SEO | Charge Serveur |
+| :--- | :--- | :--- | :--- | :--- |
+| **CSR** | Navigateur (Runtime) | Lent (page blanche initiale) | Faible à moyen | Nulle (assets statiques) |
+| **SSG** | Build time | Instantané (CDN < 50ms) | Excellent | Nulle après le build |
+| **SSR** | Requête (Par utilisateur) | Moyen (délai de calcul serveur) | Excellent | Élevée sous fort trafic |
+| **ISR** | Build + Revalidation background | Instantané (CDN) | Excellent | Très faible |
+| **PPR** | Hybride (Statique + Stream) | Instantané pour le shell | Excellent | Modérée et ciblée |
+
+---
+
+## 5. Arbre de décision : Quel mode choisir ?
+
+1. **La page contient-elle des données privées sensibles (cookies, auth, sessions) ?**
+   - **OUI** ➔ **SSR** ou **PPR** avec Server Components et Suspense.
+2. **Le contenu est-il public mais change très fréquemment (ex: prix de bourse, météo en direct) ?**
+   - **OUI** ➔ **SSR** avec Streaming ou **ISR court** (`revalidate = 30`).
+3. **Le contenu est-il public et identique pour tous (blog, doc, landing page) ?**
+   - **OUI** ➔ **SSG** ou **ISR long** (`revalidate = 3600`).
+4. **La vue est-elle une application interactive sans besoin de SEO (dashboard, tableau Kanban) ?**
+   - **OUI** ➔ **CSR** (`'use client'`) avec SWR ou TanStack Query.
+
+---
+
+## Conclusion
+
+La maîtrise des différents types de rendu est la marque des développeurs Next.js confirmés. Dans une application moderne bien architecturée, vous n'avez plus à choisir une stratégie unique : **le statique (SSG/ISR) propulse vos pages publiques, tandis que les Server Components et le Streaming (SSR/PPR) subliment vos espaces dynamiques.**

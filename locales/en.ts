@@ -1,53 +1,54 @@
-export default {
+// locales/en.ts
 
-  // Header 
+export default {
+  // Header
   'header.name': "BambaDev",
   'header.home': "Home",
-  'header.posts': "Posts",
+  'header.posts': "Articles",
   'header.link': "{name}",
-  'header.category': "Category",
+  'header.category': "Categories",
   'header.about': "About",
   'header.subscribe': "Subscribe",
 
   // Hero Section
   'hero.title': 'bamba',
   'hero.subtitle': 'Dev',
-  'hero.description': 'Thoughts on code, AI, and digital product creation. One article per week, no fluff.',
-  
+  'hero.description': 'Thoughts on code, AI, and digital product creation. One article a week, straightforward.',
+
   // Sidebar
   'sidebar.navigation': 'Navigation',
   'sidebar.newsletter.title': 'Newsletter',
-  'sidebar.newsletter.description': 'Just an email when a new article is published.',
+  'sidebar.newsletter.description': 'Just an email when a new article drops.',
   'sidebar.newsletter.placeholder': 'Email...',
   'sidebar.newsletter.button': 'Subscribe',
-  
+
   // Footer
-  'footer.made_with': 'Made with Next.js',
+  'footer.made_with': 'Built with Next.js',
   'footer.description': 'A space dedicated to modern web development and clean interface design.',
-  
+
   // Post Related
   'post.read_time': 'min read',
   'post.empty': 'No articles found.',
   'post.tag': '{tag}',
   'post.title': '{title}',
   'post.description': '{description}',
-  'post.read_study': 'Read study',
+  'post.read_study': 'Read article',
   'nav.back_to_home': 'Back to articles',
 
   // Navigation & Actions
   'nav.back_to_articles': 'Back to articles',
   'nav.all_archives': 'All archives',
   'nav.view_all_topics': 'View all topics',
-  'nav.read_study': 'Read study',
+  'nav.read_study': 'Read article',
   'nav.read': 'Read',
 
   // Archive & Tag Pages
   'archive.badge': 'Archive',
   'archive.title_main': 'Digital',
   'archive.title_italic': 'Library',
-  'archive.description': 'Tutorials, thoughts, and analyses. Use filters to explore by topic.',
+  'archive.description': 'Tutorials, thoughts, and deep dives. Use the filters to explore by topic.',
   'archive.end': 'End of archive. {count} articles published to date.',
-  
+
   'tag.category': 'Category',
   'tag.explorations.zero': 'no explorations available.',
   'tag.explorations.one': '1 exploration available.',
@@ -64,4 +65,10 @@ export default {
 
   // Components
   'search.placeholder': 'Search an article...',
+
+  // Offline PWA
+  'offline.title': 'You are offline',
+  'offline.description': 'It looks like you lost your internet connection. Articles you previously visited remain available offline from cache.',
+  'offline.retry': 'Retry',
+  'offline.back_home': 'Back to home',
 } as const;
