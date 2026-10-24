@@ -58,7 +58,7 @@ export async function generateMetadata({
   const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://bambadev.com";
 
   return {
-    title: `${post.title} | bambaDev`,
+    title: `${post.title} | bamba.dev`,
     description: post.description || "Article technique",
     openGraph: {
       title: post.title,
@@ -67,8 +67,8 @@ export async function generateMetadata({
       type: "article",
       publishedTime: post.publishedAt,
       locale: locale === "fr" ? "fr_FR" : "en_US",
-      siteName: "bambaDev",
-      authors: ["BambaDev"],
+      siteName: "bamba.dev",
+      authors: ["Bamba"],
       tags: [post.tag],
     },
     twitter: {

@@ -5,12 +5,44 @@ import { getI18n } from "@/locales/server";
 import { notFound } from "next/navigation";
 import { setStaticParamsLocale } from "next-international/server";
 import { ArrowUpRight, ArrowRight } from "lucide-react";
+import type { Metadata } from "next";
 
 export const dynamic = "force-static";
 export const revalidate = 3600;
 
 export async function generateStaticParams() {
   return [{ locale: "fr" }, { locale: "en" }];
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}): Promise<Metadata> {
+  const { locale } = await params;
+  if (!locale || locale === "[locale]") return {} as Metadata;
+  setStaticParamsLocale(locale);
+
+  const t = await getI18n();
+  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://bambadev.com";
+
+  return {
+    title: "bamba.dev - Blog & Engineering",
+    description: t("hero.description"),
+    openGraph: {
+      title: "bamba.dev - Blog & Engineering",
+      description: t("hero.description"),
+      url: `${baseUrl}/${locale}`,
+      type: "website",
+      locale: locale === "fr" ? "fr_FR" : "en_US",
+      siteName: "bamba.dev",
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: "bamba.dev - Blog & Engineering",
+      description: t("hero.description"),
+    },
+  };
 }
 
 export default async function Home({
