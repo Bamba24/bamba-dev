@@ -248,7 +248,7 @@ Server Response:
 
 ## 7. WebRTC (Web Real-Time Communication)
 
-Standardized by the W3C and IETF, **WebRTC** enables direct, low-latency **Peer-to-Peer (P2P)** streaming of audio, video, and arbitrary binary data between browsers with sub-second latency (< 200ms).
+Standardized by the W3C and IETF, **WebRTC** enables direct, low-latency **Peer-to-Peer (P2P)** streaming of audio, video, and arbitrary binary data between browsers with sub-second latency (under 200ms).
 
 ```txt
 ┌──────────────┐         Signaling Server (WebSocket)      ┌──────────────┐
@@ -269,7 +269,7 @@ Standardized by the W3C and IETF, **WebRTC** enables direct, low-latency **Peer-
 - **Data Channels**: `RTCDataChannel` allows arbitrary high-frequency binary data exchange with configurable delivery guarantees.
 
 ### Trade-offs
-- **Pros**: Unmatched sub-second latency (<200ms); massive server bandwidth savings (no central video relaying).
+- **Pros**: Unmatched sub-second latency (under 200ms); massive server bandwidth savings (no central video relaying).
 - **Cons**: High engineering complexity; mesh setups do not scale past 4–6 participants without Selective Forwarding Units (SFUs) like LiveKit or Janus.
 - **Best for**: Video meetings (Google Meet, Discord), browser-to-browser P2P file transfers, cloud gaming streaming.
 
@@ -285,7 +285,7 @@ Standardized by the W3C and IETF, **WebRTC** enables direct, low-latency **Peer-
 | **WebSocket** | TCP | Text, JSON, Binary | Bidirectional Full-Duplex | Ultra-Low (2-10ms) | Medium | Live chat, crypto trading, gaming |
 | **Webhooks** | HTTP / HTTPS | JSON | Asynchronous Push (Server $\rightarrow$ Server)| Event-driven | Low | Payment events (Stripe), CI/CD hooks |
 | **GraphQL** | HTTP (POST) | JSON | Declarative Query | Moderate | Medium/High | Multi-service frontend dashboards |
-| **WebRTC** | UDP (SRTP / SCTP) | Audio, Video, Binary | Direct Peer-to-Peer (P2P) | Sub-second (< 200ms) | Very High | Video conferencing, live voice, P2P data |
+| **WebRTC** | UDP (SRTP / SCTP) | Audio, Video, Binary | Direct Peer-to-Peer (P2P) | Sub-second (under 200ms) | Very High | Video conferencing, live voice, P2P data |
 
 ---
 

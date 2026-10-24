@@ -293,7 +293,7 @@ Réponse Serveur (Exactement ce qui a été demandé):
 
 ## 7. WebRTC (Web Real-Time Communication)
 
-Standardisé conjointement par le W3C et l'IETF, **WebRTC** permet d'établir une communication directe **pair-à-pair (*Peer-to-Peer*)** en temps réel entre deux navigateurs ou périphériques pour échanger de la vidéo, de l'audio et des données brutes avec une latence sub-seconde (< 200 ms).
+Standardisé conjointement par le W3C et l'IETF, **WebRTC** permet d'établir une communication directe **pair-à-pair (*Peer-to-Peer*)** en temps réel entre deux navigateurs ou périphériques pour échanger de la vidéo, de l'audio et des données brutes avec une latence sub-seconde (moins de 200 ms).
 
 ```txt
 ┌──────────────┐         Serveur de Signalisation          ┌──────────────┐
@@ -318,7 +318,7 @@ Standardisé conjointement par le W3C et l'IETF, **WebRTC** permet d'établir un
 
 ### Forces & Faiblesses
 - **Points forts** :
-  - Latence ultra-faible inégalable (< 200 millisecondes, indispensable pour la voix humaine).
+  - Latence ultra-faible inégalable (moins de 200 millisecondes, indispensable pour la voix humaine).
   - Économie colossale de bande passante serveur : votre infrastructure n'achemine pas les téraoctets de flux vidéo.
   - Chiffrement de bout en bout obligatoire (DTLS et SRTP).
 - **Points faibles** :
@@ -338,7 +338,7 @@ Standardisé conjointement par le W3C et l'IETF, **WebRTC** permet d'établir un
 | **WebSocket** | TCP (Handshake HTTP) | Texte, JSON, Binaire | Bidirectionnel Full-Duplex | Ultra-faible (2-10ms) | Moyenne | Chats, live crypto/trading, gaming |
 | **Webhooks** | HTTP / HTTPS | JSON | Asynchrone Push (Serveur $\rightarrow$ Serveur)| Événementielle | Faible | Paiements (Stripe), alertes CI/CD, CRM |
 | **GraphQL** | HTTP (POST) | JSON | Requête flexible (Client-Driven)| Moyenne | Moyenne/Élevée | Portails web riches, apps mobiles, BFF |
-| **WebRTC** | UDP (SRTP / SCTP) | Audio, Vidéo, Binaire | Pair-à-Pair direct (P2P) | Sub-seconde (< 200ms) | Très élevée | Visioconférence, voix temps réel, cloud gaming|
+| **WebRTC** | UDP (SRTP / SCTP) | Audio, Vidéo, Binaire | Pair-à-Pair direct (P2P) | Sub-seconde (moins de 200ms) | Très élevée | Visioconférence, voix temps réel, cloud gaming|
 
 ---
 
