@@ -1,150 +1,274 @@
 ---
-title: "Guide Complet : Comment Setup Claude Code et Maîtriser ses Fichiers de Configuration"
-description: "Apprenez à installer Claude Code CLI, à configurer CLAUDE.md, .claudeignore, les serveurs MCP et les permissions pour un environnement de développement augmenté."
+title: "Guide Complet : Comment Setup Claude Code et Maîtriser son Workflow en 2026"
+description: "Le tutoriel exhaustif pour maîtriser Claude Code en conditions réelles : installation, anatomie d'un CLAUDE.md parfait, .claudeignore, MCP, Plan Mode et workflows pro."
 tag: "IA"
 publishedAt: "2026-09-10"
 published: true
-time: 8
+time: 14
 ---
 
-# Guide Complet : Comment Setup Claude Code et Maîtriser ses Fichiers de Configuration
+# Guide Complet : Comment Setup Claude Code et Maîtriser son Workflow en 2026
 
-**Claude Code** est l'outil en ligne de commande développé par Anthropic qui transforme votre terminal en un atelier de pair-programming autonome. Contrairement aux extensions d'IDE traditionnelles qui se contentent d'autocompléter une ligne, Claude Code analyse l'ensemble de votre dépôt, exécute vos tests, résout les erreurs de typage et gère vos commits Git.
+Dans l'écosystème du développement assisté par intelligence artificielle, une distinction majeure s'est imposée : d'un côté, les assistants d'autocomplétion (GitHub Copilot, Cursor Tab) qui vous suggèrent la ligne suivante dans votre éditeur ; de l'autre, les **vrais agents autonomes d'ingénierie logicielle** opérant directement dans votre terminal.
 
-Mais pour tirer le plein potentiel de cet agent sans dérapage ni surcoût en tokens d'API, une **configuration méthodique de votre projet est indispensable**.
+**Claude Code**, développé par Anthropic, s'est imposé comme la référence absolue de cette seconde catégorie. Capable de naviguer dans une codebase de plusieurs dizaines de milliers de lignes, d'exécuter des commandes shell, de lancer votre suite de tests, de corriger ses propres erreurs de typage et de préparer vos commits Git, il agit comme un pair-programmer senior à vos côtés.
 
-Dans ce guide pratique, nous allons voir pas-à-pas comment installer Claude Code, maîtriser le fichier pivot `CLAUDE.md`, configurer `.claudeignore` et connecter des serveurs d'outils via **MCP (Model Context Protocol)**.
+Cependant, donner les clés de son terminal à un agent sans configuration préalable est la meilleure façon de gaspiller des dizaines de dollars de tokens ou de générer des régressions.
+
+Inspiré de la formation vidéo de référence de 4 heures sur Claude Code, ce guide vous livre **le plan d'action pas-à-pas pour installer, configurer et maîtriser Claude Code en production**.
 
 ---
 
-## 1. Installation & Authentification Initiale
+## 1. Comprendre l'Architecture Agentique de Claude Code
 
-Claude Code est distribué sous forme de paquet exécutable Node.js :
+Pour bien utiliser Claude Code, il faut comprendre comment il « réfléchit ». Contrairement à un chatbot web qui répond d'un seul bloc, Claude Code fonctionne dans une **boucle d'action autonome** (*Agentic Loop*) :
+
+```txt
+┌──────────────────────────────────────────────────────────────┐
+│                    LA BOUCLE AGENTIQUE                       │
+├──────────────────────────────────────────────────────────────┤
+│ 1. OBSERVATION  : Analyse de votre invite et des fichiers    │
+│ 2. RAISONNEMENT : Établissement d'une stratégie de code      │
+│ 3. ACTION       : Appel d'un outil (Read, Edit, Bash, Grep)  │
+│ 4. VÉRIFICATION : Exécution des tests et compilation         │
+│ 5. CORRECTION   : Si une erreur survient, analyse et réessai │
+│ 6. RESTITUTION  : Validation finale présentée au développeur │
+└──────────────────────────────────────────────────────────────┘
+```
+
+Claude Code dispose d'outils système intégrés :
+- `View` / `Read` : Lire des fichiers ou des plages de lignes ciblées.
+- `Edit` : Effectuer des modifications chirurgicales sans réécrire tout le fichier.
+- `Bash` : Exécuter des commandes de build, linters ou tests unitaires.
+- `Glob` / `Grep` : Trouver instantanément des fichiers ou des symboles dans toute l'arborescence.
+
+---
+
+## 2. Installation, Prérequis & Authentification
+
+### Prérequis indispensables :
+- **Node.js** (version 18.0 ou supérieure, idéalement Node 20 LTS).
+- **Git** installé et initialisé dans votre projet.
+- Un terminal moderne (Terminal intégré VS Code, Cursor, Warp, iTerm2 ou Ghostty).
+
+### Installation globale :
 
 ```bash
-# Installation globale recommandée
+# Installation du CLI officiel
 npm install -g @anthropic-ai/claude-code
 
-# Vérification de l'installation
+# Vérification de la version installée
 claude --version
 ```
 
-### Première connexion :
-Dans votre terminal, naviguez dans un dossier de projet et lancez simplement :
+### Premier démarrage & Authentification :
+
+Naviguez dans le dossier de votre projet et lancez la commande :
 
 ```bash
 claude
 ```
 
-Un lien d'autorisation s'ouvre dans votre navigateur pour associer votre compte Anthropic Console. Vous devez disposer d'une clé d'API valide ou d'un compte avec des crédits actifs.
+Deux méthodes d'authentification sont supportées :
+1. **OAuth via Navigateur (Recommandé)** : Une page web s'ouvre pour autoriser Claude Code avec votre abonnement Anthropic (Claude Pro / Team / Max ou Console).
+2. **Clé d'API Console** : Vous pouvez définir votre clé directement dans vos variables d'environnement système :
+   ```bash
+   export ANTHROPIC_API_KEY="sk-ant-api03-..."
+   ```
 
 ---
 
-## 2. Le cœur du système : Le fichier `CLAUDE.md`
+## 3. Le Fichier Pivot `CLAUDE.md` : La Constitution de Votre Projet 📜
 
-Le fichier `CLAUDE.md` placé à la racine de votre projet est le document le plus important. C'est le **manuel d'instructions** que Claude Code lit au tout début de chaque session.
+Le fichier `CLAUDE.md` est le document le plus stratégique de votre configuration. **Claude Code le lit automatiquement au démarrage de chaque session**.
 
-```txt
-mon-projet/
-  ├── CLAUDE.md          <-- Instructions métier, conventions, commandes
-  ├── .claudeignore      <-- Fichiers à masquer pour économiser les tokens
-  ├── src/
-  └── package.json
-```
+Sans `CLAUDE.md`, l'agent devine vos conventions et commet des erreurs. Avec un `CLAUDE.md` rigoureux, il respecte vos standards dès la première seconde.
 
-### Exemple type d'un `CLAUDE.md` pour un projet Next.js / TypeScript :
+### Les 3 Niveaux de Fichiers d'Instructions
+
+1. **Global (`~/.claude/CLAUDE.md`)** : Vos préférences personnelles valables pour tous vos projets (ex: langue française, style de communication concis).
+2. **Projet (`./CLAUDE.md`)** : Règles d'architecture, commandes de build et conventions d'équipe commitées sur le dépôt Git.
+3. **Local Projet (`./CLAUDE.local.md`)** : Vos instructions spécifiques non commitées (ignorées par `.gitignore`).
+
+### Modèle Parfait d'un `CLAUDE.md` Professionnel
+
+Voici la structure recommandée par la masterclass pour un projet Next.js / TypeScript :
 
 ```markdown
-# Instructions du Projet (bambaDev Blog)
+# Instructions Projet — Mon Application
 
-## Stack Technique
-- Next.js 16 (App Router) + React 19 + TypeScript strict
-- Tailwind CSS v4 + Lucide React
-- i18n via next-international
+## 🎯 Contexte & Vision
+Plateforme SaaS de gestion de rendez-vous médicaux avec Next.js 16 (App Router),
+PostgreSQL (Neon) et Better Auth pour l'authentification.
 
-## Commandes Fréquentes
-- Lancer le serveur local : `npm run dev`
-- Vérifier les types : `npm run type-check`
-- Compiler en production : `npm run build`
-- Linter : `npm run lint`
+## 🛠️ Stack Technique & Outils
+- Framework : Next.js 16 (App Router, Server Components par défaut)
+- Langage : TypeScript strict (interdiction absolue de any ou d'assertions aveugles)
+- Styles : Tailwind CSS v4 + Lucide React
+- Base de données & ORM : PostgreSQL + Prisma ORM
+- Gestion d'état serveur : TanStack Query ou RTK Query
 
-## Règles d'Architecture et Conventions
-1. Zéro `any` : Utiliser des types stricts. Pour les données d'API, typer sur le résultat exact.
-2. Pas de données dérivées dans useEffect : Calculer les valeurs dérivées de manière synchrone au rendu.
-3. DRY : Réutiliser systématiquement les utilitaires de `lib/utils/`.
-4. Tests & Validation : Toujours exécuter `npm run type-check` après chaque modification de fichier avant de proposer un commit.
+## ⚡ Commandes Indispensables (Automatisables par l'agent)
+- Démarrer le serveur de développement : `npm run dev`
+- Validation stricte des types : `npm run type-check`
+- Linter le code : `npm run lint`
+- Exécuter la suite de tests : `npm run test`
+- Build de production : `npm run build`
 
-## Style de Git Commit
-- Format Conventional Commits : `feat: ...`, `fix: ...`, `refactor: ...`.
+## 🛡️ Règles d'Ingénierie & Conventions
+1. Séparation des responsabilités : Ne jamais appeler la BDD dans un Client Component.
+2. Anti-pattern useEffect : Ne jamais copier de données API dans un useState pour les transformer. Calculer les données dérivées de façon synchrone.
+3. DRY : Toujours vérifier si un utilitaire existe dans `lib/utils/` avant d'en créer un.
+4. Autonomie de test : Toujours exécuter `npm run type-check` et `npm run test` après toute modification avant de rendre la main.
+
+## 📝 Conventions Git & Commits
+- Format Conventional Commits : `feat: ...`, `fix: ...`, `refactor: ...`, `docs: ...`.
+- Messages de commit en anglais ou français, courts et précis.
+- Ne JAMAIS exécuter de push forcé (`git push --force`).
 ```
 
 <Note>
-**Bonne pratique :** Plus vos commandes de validation (`build`, `test`, `type-check`) sont explicites dans `CLAUDE.md`, plus l'agent sera capable de tester ses propres modifications en autonomie et de corriger ses erreurs avant de vous rendre la main.
+**L'astuce de la masterclass :** Donner explicitement les commandes `npm run type-check` et `npm run test` dans `CLAUDE.md` débloque l'autonomie complète de Claude Code. Lorsqu'il modifie un fichier, il lancera lui-même la commande, lira la trace d'erreur TypeScript éventuelle et la corrigera avant même que vous ne voyiez le bug !
 </Note>
 
 ---
 
-## 3. Optimisation des tokens : Le fichier `.claudeignore`
+## 4. Maîtriser les Coûts & les Tokens : Le Rôle Crucial de `.claudeignore` 🧹
 
-Claude Code inspecte votre arborescence pour comprendre le contexte. Si votre projet contient de gros fichiers compilés, des dumps SQL ou des images, votre consommation de tokens d'API risque d'exploser inutilement.
+Un projet moderne contient des dizaines de milliers de lignes inutiles pour une IA : fichiers compilés, bundles minifiés, logs, images ou données de test.
 
-Créez un fichier `.claudeignore` à la racine (fonctionne exactement comme un `.gitignore`) :
+Si vous laissez Claude Code indexer ces fichiers, vous subissez deux pénalités majeures :
+1. **Pollution du contexte** : Plus le contexte contient du bruit, moins le modèle est attentif à vos vraies règles métier.
+2. **Explosion de la facture** : Vous payez des millions de tokens d'entrée pour des fichiers générés.
+
+Créez un fichier `.claudeignore` à la racine de votre projet :
 
 ```gitignore
-# .claudeignore
+# Dossiers de dépendances et de build
 node_modules/
 .next/
 dist/
 build/
+out/
 coverage/
+.turbo/
 
-# Données volumineuses et logs
+# Fichiers volumineux, bases SQLite et données brutes
 *.log
 *.sqlite
-*.sql
+*.sqlite3
 *.csv
+*.tsv
+*.sql
+*.dump
 
-# Fichiers secrets
+# Médias lourds
+public/videos/
+public/images/raw/
+*.mp4
+*.zip
+*.tar.gz
+
+# Secrets et variables sensibles
 .env
 .env.local
-.env.production
-certs/
+.env.*.local
+*.pem
+*.key
 ```
+
+### Les Commandes Clés dans le Terminal CLI
+
+Pendant votre session dans le terminal de Claude Code, utilisez ces raccourcis :
+
+| Commande | Rôle | Quand l'utiliser ? |
+| :--- | :--- | :--- |
+| `/cost` | Affiche les dépenses en dollars et les tokens consommés. | À consulter régulièrement pour piloter son budget. |
+| `/compact` | Résume et compresse la conversation active. | Dès que la conversation dépasse 20 échanges ou devient lente. |
+| `/clear` | Vide la mémoire de session tout en restant dans le CLI. | Quand vous entamez une toute nouvelle fonctionnalité indépendante. |
+| `/doctor` | Vérifie l'état de santé du CLI, du réseau et de Git. | En cas de comportement inattendu ou de problème réseau. |
 
 ---
 
-## 4. Étendre les capacités avec le Model Context Protocol (MCP)
+## 5. La Méthode Professionnelle : Le "Plan Mode" (Think Before Code) 🧠
 
-L'une des plus grandes forces de Claude Code est sa compatibilité avec les serveurs **MCP**. Grâce à eux, l'agent peut exécuter des requêtes directement sur votre base de données locale ou interagir avec vos outils de monitoring.
+Le piège des développeurs débutants avec Claude Code est de lui lancer une consigne floue : *« Crée-moi un système d'authentification »*.
+
+L'agent va immédiatement créer 15 fichiers, casser des dépendances et s'emmêler dans ses modifications.
+
+La masterclass enseigne la **règle d'or de l'ingénierie augmentée** : **Planifier d'abord, coder ensuite**.
+
+```txt
+┌────────────────────────────────────────────────────────┐
+│             LE WORKFLOW DU "PLAN MODE"                 │
+├────────────────────────────────────────────────────────┤
+│ 1. DEMANDE DE PLAN :                                   │
+│    "Analyse notre architecture et propose un plan      │
+│     d'action détaillé en 5 étapes sans modifier de     │
+│     fichiers pour l'instant."                          │
+│                                                        │
+│ 2. REVUE HUMAINE :                                     │
+│    Vous lisez le plan, ajustez un choix technique      │
+│    et validez la direction.                            │
+│                                                        │
+│ 3. EXÉCUTION GUIDÉE :                                  │
+│    "Le plan est validé. Exécute l'Étape 1 et lance les │
+│     tests pour vérifier."                              │
+└────────────────────────────────────────────────────────┘
+```
+
+Cette approche réduit de **80% les erreurs de code** et vous maintient toujours aux commandes du projet.
+
+---
+
+## 6. Étendre Claude Code avec le Model Context Protocol (MCP) 🔌
+
+Le **Model Context Protocol (MCP)** est un standard ouvert conçu par Anthropic permettant à Claude Code de se brancher sur vos outils externes : bases de données, navigateurs de test ou APIs tierces.
+
+### Exemples d'intégration MCP courantes :
 
 ```bash
-# Exemple : Connecter un serveur MCP PostgreSQL pour inspecter le schéma SQL
-claude mcp add postgres npx -y @modelcontextprotocol/server-postgres postgresql://user:password@localhost:5432/ma_base
+# 1. Connecter une base de données PostgreSQL pour inspecter les schémas
+claude mcp add postgres npx -y @modelcontextprotocol/server-postgres postgresql://user:pass@localhost:5432/app_db
 
-# Vérifier la liste des serveurs configurés
+# 2. Connecter GitHub pour ouvrir des Pull Requests et lire des issues
+claude mcp add github npx -y @modelcontextprotocol/server-github
+
+# 3. Connecter un navigateur Puppeteer pour des tests end-to-end
+claude mcp add puppeteer npx -y @modelcontextprotocol/server-puppeteer
+
+# Lister les serveurs MCP actifs
 claude mcp list
 ```
 
----
-
-## 5. Gestion des permissions et modes de sécurité
-
-Par défaut, Claude Code adopte une approche défensive : il vous demande une confirmation interactive avant chaque écriture de fichier ou exécution de commande shell sensible (`rm`, `git push`, script externe).
-
-### Raccourcis et commandes utiles dans l'interface CLI :
-
-| Commande | Action |
-| :--- | :--- |
-| `/cost` | Affiche les dépenses en tokens et le coût financier de la session en cours. |
-| `/compact` | Compresse l'historique de la conversation pour libérer la fenêtre de contexte. |
-| `/clear` | Réinitialise l'historique de chat tout en conservant la session active. |
-| `/help` | Affiche la liste des commandes et outils disponibles. |
+Grâce à MCP, si vous demandez : *« Vérifie si notre schéma de base de données possède bien la colonne role dans la table users »*, Claude Code exécutera directement la requête SQL d'inspection via le serveur MCP !
 
 ---
 
-## Résumé de la checklist de setup
+## 7. Les 4 Workflows Pratiques de la Masterclass
+
+### Workflow 1 : Onboarding sur une Codebase Existante
+Vous venez d'arriver sur un projet volumineux ? Demandez à Claude Code :
+> *"Explore le dossier src/ et dresse-moi un état des lieux : quelle est l'architecture globale, où sont les flux de données critiques et quels sont les points de fragilité technique ?"*
+
+### Workflow 2 : Création d'une Nouvelle Feature (TDD)
+> *"Nous voulons ajouter l'export CSV des rendez-vous. Rédige d'abord le test unitaire dans __tests__/export.test.ts, vérifie qu'il échoue, puis code l'implémentation minimale pour le faire passer au vert."*
+
+### Workflow 3 : Débogage d'une Erreur Complexe
+> *"Voici la trace d'erreur reçue en production : [coller la stack trace]. Analyse d'où provient la rupture de contrat TypeScript, reproduis le problème et applique le correctif le plus épuré."*
+
+### Workflow 4 : Refactoring Sécurisé
+> *"Nous voulons migrer le composant UserTable vers les nouveaux composants UI de Shadcn. Fais-le étape par étape en garantissant que toutes les props existantes restent rétrocompatibles."*
+
+---
+
+## Checklist Récapitulative pour Démarrer Proprement
 
 - [ ] Installer le CLI via `npm install -g @anthropic-ai/claude-code`.
-- [ ] Créer un fichier `CLAUDE.md` clair avec la stack, les commandes de test et les règles de code.
-- [ ] Configurer `.claudeignore` pour exclure les répertoires compilés et secrets.
-- [ ] Connecter vos serveurs MCP si vous travaillez avec des bases de données ou des APIs externes.
+- [ ] Créer le fichier `CLAUDE.md` avec la stack, les règles strictes et les commandes de test.
+- [ ] Configurer `.claudeignore` pour exclure builds, caches, médias et secrets.
+- [ ] Adopter le réflexe du **Plan Mode** avant toute tâche complexe.
+- [ ] Surveiller les dépenses avec `/cost` et purger la mémoire avec `/compact`.
+- [ ] Connecter vos serveurs MCP pour les bases de données et outils externes.
+
+Avec cette configuration, Claude Code ne sera plus un simple générateur de snippets, mais un véritable accélérateur d'ingénierie au service de votre productivité.
