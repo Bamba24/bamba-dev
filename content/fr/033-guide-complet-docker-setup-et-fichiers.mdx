@@ -1,0 +1,432 @@
+---
+title: "Guide Complet de Docker : Fonctionnement, Setup et Anatomie de Tous Ses Fichiers"
+description: "Comprenez en profondeur Docker, la conteneurisation vs VM, l'installation du moteur, et maîtrisez Dockerfile, docker-compose.yml, .dockerignore, daemon.json et docker-compose.override."
+tag: "DevOps"
+publishedAt: "2026-10-24"
+published: true
+time: 20
+---
+
+# Guide Complet de Docker : Fonctionnement, Setup et Anatomie de Tous Ses Fichiers
+
+« *Mais pourtant, ça marchait très bien sur ma machine !* »
+
+Cette phrase historique a trouvé sa réponse définitive en 2013 avec l'avènement de **Docker**. Aujourd'hui, Docker et la conteneurisation constituent le socle absolu du déploiement logiciel moderne, du poste de travail local jusqu'aux clusters Kubernetes de production.
+
+Dans ce guide technique complet, nous allons démystifier le fonctionnement interne de Docker, détailler son setup pas à pas sur différents environnements, et décortiquer l'anatomie de **tous les fichiers de configuration** qui composent son écosystème.
+
+---
+
+## 1. Conteneur vs Machine Virtuelle : Comment Docker Fonctionne-t-il Vraiment ?
+
+Pour comprendre l'élégance de Docker, il faut d'abord comparer son modèle d'isolation à celui d'une **Machine Virtuelle (VM)** traditionnelle.
+
+```txt
+┌─────────────────────────────────┐     ┌─────────────────────────────────┐
+│     MACHINE VIRTUELLE (VM)      │     │        CONTENEUR DOCKER         │
+├─────────────────────────────────┤     ├─────────────────────────────────┤
+│    Application A │ App B        │     │    Application A │ App B        │
+├──────────────────┼──────────────┤     ├──────────────────┼──────────────┤
+│  Bibliothèques   │ Libs système │     │   Bibliothèques et dépendances  │
+├──────────────────┼──────────────┤     ├─────────────────────────────────┤
+│    OS Invité     │  OS Invité   │     │        Moteur Docker (Daemon)   │
+│ (ex: Ubuntu 2GB) │(ex: Debian)  │     ├─────────────────────────────────┤
+├──────────────────┴──────────────┤     │         Noyau Linux de l'Hôte   │
+│      Hyperviseur (Type 1 ou 2)  │     │   (Namespaces, cgroups, UnionFS)│
+├─────────────────────────────────┤     ├─────────────────────────────────┤
+│         Matériel Physique       │     │         Matériel Physique       │
+└─────────────────────────────────┘     └─────────────────────────────────┘
+```
+
+### Le Modèle Lourd des Machines Virtuelles
+Une machine virtuelle virtualise le matériel via un **Hyperviseur** (VirtualBox, VMware, KVM). Pour chaque application, vous devez installer un système d'exploitation invité (*Guest OS*) complet avec son propre noyau, ses démons système, ses pilotes et son gestionnaire de paquets.
+- **Poids** : Plusieurs gigaoctets par machine.
+- **Temps de démarrage** : 30 secondes à plusieurs minutes.
+- **Consommation** : Mémoire vive et CPU réservés de façon statique.
+
+### Le Modèle Léger des Conteneurs Docker
+Un conteneur Docker n'embarque **aucun noyau de système d'exploitation**. Il s'exécute directement comme un processus isolé sur la machine hôte et **partage directement le noyau Linux de l'hôte**.
+
+L'isolation d'un conteneur repose sur trois piliers fondamentaux intégrés au kernel Linux :
+1. **Les Namespaces (Espaces de nommage)** : ils créent une illusion d'isolation complète pour les processus du conteneur :
+   - `pid` : le processus principal du conteneur se voit comme le processus n°1 (`PID 1`), isolé des autres processus de la machine hôte.
+   - `net` : le conteneur dispose de sa propre interface réseau virtuelle (`eth0`) et de sa propre table de routage.
+   - `mnt` : le conteneur a son propre système de fichiers monté, incapable de voir la racine de l'hôte.
+   - `ipc` / `uts` / `user` : isolation de la communication inter-processus, du nom d'hôte et des identifiants utilisateurs.
+2. **Les Control Groups (cgroups)** : ils fixent des plafonds stricts d'utilisation des ressources matérielles pour éviter qu'un conteneur n'asphyxie la machine hôte (ex: limiter à 512 Mo de RAM et 1 cœur de processeur).
+3. **Le système de fichiers UnionFS (Overlay2)** : les images Docker sont composées de couches superposées immuables en lecture seule (*Read-Only Layers*). Lorsqu'un conteneur tourne, une fine couche modifiable en écriture (*Writable Container Layer*) est ajoutée au sommet via le mécanisme de *Copy-on-Write*.
+
+---
+
+## 2. L'Architecture et le Setup de Docker
+
+L'écosystème Docker s'articule autour d'une architecture client-serveur :
+
+```txt
+┌──────────────┐     REST API / Socket UNIX     ┌────────────────────────┐
+│  Docker CLI  │ ─────────────────────────────► │     Docker Daemon      │
+│  (`docker`)  │ ◄───────────────────────────── │       (`dockerd`)      │
+└──────────────┘                                └───────────┬────────────┘
+                                                            ▼
+                                                ┌────────────────────────┐
+                                                │ containerd & runc      │
+                                                │ (Lancement conteneurs) │
+                                                └────────────────────────┘
+```
+
+1. **`dockerd` (Docker Daemon)** : le service système persistant qui écoute les requêtes de l'API Docker et gère les conteneurs, images, réseaux et volumes.
+2. **Docker REST API** : le canal de communication (généralement via la socket `/var/run/docker.sock` sur Linux).
+3. **Docker CLI (`docker`)** : le binaire exécuté par le développeur dans son terminal pour interagir avec le démon.
+4. **`containerd` & `runc`** : les briques d'exécution bas niveau conformes aux standards de l'OCI (*Open Container Initiative*).
+
+---
+
+### Installation Pas à Pas
+
+#### Sur Linux (Ubuntu / Debian)
+```bash
+# 1. Mise à jour et dépendances de transport sécurisé
+sudo apt-get update
+sudo apt-get install -y ca-certificates curl gnupg
+
+# 2. Ajout de la clé GPG officielle de Docker
+sudo install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+sudo chmod a+r /etc/apt/keyrings/docker.gpg
+
+# 3. Ajout du repository officiel Docker dans les sources APT
+echo \
+  "deb [arch="$(dpkg --print-architecture)" signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+  "$(. /etc/os-release && echo "$VERSION_CODENAME")" stable" | \
+  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+# 4. Installation du moteur Docker, de la CLI et du plugin Docker Compose
+sudo apt-get update
+sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+# 5. Configuration post-installation : exécuter Docker sans sudo
+sudo usermod -aG docker $USER
+newgrp docker
+
+# 6. Vérification de l'installation
+docker version
+docker run --rm hello-world
+```
+
+#### Sur Windows 10/11 et macOS
+- Téléchargez et installez **Docker Desktop**.
+- Sur Windows : activez impérativement le backend **WSL 2 (Windows Subsystem for Linux 2)** dans les paramètres de Docker Desktop. Cela permet à Docker d'exécuter un vrai noyau Linux optimisé en mémoire vive, offrant des vitesses d'écriture et de lecture sur disque bien supérieures à l'ancien moteur Hyper-V.
+
+---
+
+## 3. Les Fichiers Clés de Docker Décortiqués
+
+Maîtriser Docker en environnement de production exige de connaître sur le bout des doigts les différents fichiers qui orchestrent la construction, l'exécution et l'optimisation des conteneurs.
+
+```txt
+┌──────────────────────────┬────────────────────────────────────────────────────────┐
+│ FICHIER                  │ RÔLE FONDAMENTAL                                       │
+├──────────────────────────┼────────────────────────────────────────────────────────┤
+│ Dockerfile               │ Recette de fabrication d'une image autonome            │
+│ docker-compose.yml       │ Définition et orchestration de multiples services      │
+│ .dockerignore            │ Filtrage des fichiers envoyés au démon pendant le build│
+│ docker-compose.override  │ Surcharge locale automatique pour l'environnement dev  │
+│ daemon.json              │ Paramétrage du moteur Docker système sur la machine    │
+│ entrypoint.sh            │ Script d'initialisation exécuté au boot du conteneur   │
+└──────────────────────────┴────────────────────────────────────────────────────────┘
+```
+
+---
+
+### 3.1 Le `Dockerfile` (avec Multi-Stage Build)
+
+Le `Dockerfile` est le script d'instructions exécuté par `docker build` pour générer une image. Chaque instruction crée une nouvelle couche de système de fichiers mise en cache.
+
+Pour éviter de concevoir des images de production gigantesques de plus d'1 Go contenant des compilateurs et des outils de développement, le standard de l'industrie est le **Multi-Stage Build**.
+
+Voici un exemple professionnel pour une application Node.js / TypeScript :
+
+```dockerfile
+# ==============================================================================
+# ÉTAPE 1 : Build & Compilation (Image lourde avec devDependencies et tsc)
+# ==============================================================================
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# 1. Copie des fichiers de manifeste en premier pour maximiser le cache Docker
+COPY package.json package-lock.json ./
+
+# 2. Installation stricte et reproductible des dépendances
+RUN npm ci
+
+# 3. Copie du reste du code source
+COPY . .
+
+# 4. Compilation du code TypeScript vers le dossier dist/
+RUN npm run build
+
+# 5. Élagage des dépendances de dev : ne garde que les modules de production
+RUN npm prune --production
+
+# ==============================================================================
+# ÉTAPE 2 : Image d'Exécution Finale (Image minimale ultra-légère ~110 Mo)
+# ==============================================================================
+FROM node:20-alpine AS runner
+
+WORKDIR /app
+
+# Sécurité : ne JAMAIS exécuter une application web en tant que root dans un conteneur
+USER node
+
+# Copie sélective des artefacts compilés depuis l'étape 'builder'
+COPY --chown=node:node --from=builder /app/package.json ./package.json
+COPY --chown=node:node --from=builder /app/node_modules ./node_modules
+COPY --chown=node:node --from=builder /app/dist ./dist
+
+# Variables d'environnement par défaut
+ENV NODE_ENV=production
+ENV PORT=3000
+
+# Documentation du port d'écoute
+EXPOSE 3000
+
+# Commande de lancement du serveur
+CMD ["node", "dist/main.js"]
+```
+
+> **Comprendre la nuance entre `CMD` et `ENTRYPOINT` :**
+> - `ENTRYPOINT` configure le binaire principal immuable du conteneur (ex: `ENTRYPOINT ["nginx"]`).
+> - `CMD` fournit des arguments par défaut qui peuvent être écrasés lors de l'appel CLI (ex: `docker run mon-image -g "daemon off;"`). Si `ENTRYPOINT` n'est pas défini, `CMD` sert de commande de lancement.
+
+---
+
+### 3.2 Le Fichier `docker-compose.yml` (Compose Specification)
+
+`docker-compose.yml` permet de décrire dans un fichier déclaratif YAML l'ensemble de votre infrastructure applicative (API backend, base de données relationnelle, serveur de cache) avec leurs réseaux privés et leurs volumes persistants.
+
+```yaml
+services:
+  # ==========================================
+  # Service 1 : API Node.js / NestJS / Express
+  # ==========================================
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bambadev_api
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://bamba:secret_password@db:5432/production_db?schema=public
+      - REDIS_URL=redis://cache:6379
+    depends_on:
+      db:
+        condition: service_healthy
+      cache:
+        condition: service_started
+    networks:
+      - internal_network
+
+  # ==========================================
+  # Service 2 : Base de Données PostgreSQL
+  # ==========================================
+  db:
+    image: postgres:16-alpine
+    container_name: bambadev_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: bamba
+      POSTGRES_PASSWORD: secret_password
+      POSTGRES_DB: production_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bamba -d production_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - internal_network
+
+  # ==========================================
+  # Service 3 : Cache en Mémoire Redis
+  # ==========================================
+  cache:
+    image: redis:7-alpine
+    container_name: bambadev_redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    networks:
+      - internal_network
+
+# Réseau interne isolé : la base de données n'est pas accessible depuis l'extérieur de la machine hôte
+networks:
+  internal_network:
+    driver: bridge
+
+# Volumes persistants sur le disque de la machine hôte
+volumes:
+  postgres_data:
+  redis_data:
+```
+
+---
+
+### 3.3 Le Fichier `.dockerignore`
+
+Le fichier `.dockerignore` fonctionne exactement comme un `.gitignore`. Avant de compiler une image, Docker transfère l'intégralité du répertoire courant au démon (*Sending build context to Docker daemon*).
+
+Si vous omettez `.dockerignore` :
+1. Vous envoyez des gigaoctets de fichiers locaux inutiles (`node_modules`, builds `.next`, logs).
+2. Vous risquez d'embarquer des **secrets critiques** (`.env`, clés SSH, certificats SSL) dans les couches de l'image Docker publique !
+3. Vous écrasez les dépendances compilées pour Linux avec vos binaires natifs macOS ou Windows.
+
+Exemple complet de `.dockerignore` :
+```txt
+# Dépendances locales
+node_modules
+npm-debug.log
+yarn-error.log
+
+# Fichiers de compilation et de cache
+dist
+build
+.next
+.turbo
+.cache
+
+# Variables d'environnement et secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Gestion de version Git
+.git
+.gitignore
+.github
+
+# Fichiers d'environnement système et IDE
+.vscode
+.idea
+.DS_Store
+Thumbs.db
+
+# Documentation et Dockerfiles
+*.md
+Dockerfile*
+docker-compose*
+```
+
+---
+
+### 3.4 Le Fichier `docker-compose.override.yml`
+
+Docker Compose possède un comportement magique : lorsqu'un fichier nommé `docker-compose.override.yml` est présent à côté de `docker-compose.yml`, la commande `docker compose up` **fusionne automatiquement les deux fichiers**.
+
+C'est l'outil par excellence pour personnaliser votre **environnement de développement local** sans altérer la configuration de production :
+
+```yaml
+services:
+  api:
+    build:
+      target: builder # s'arrête au stage de build pour garder les outils dev
+    volumes:
+      # Bind mount : le code sur votre machine modifie en direct le code dans le conteneur
+      - .:/app
+      # Volume anonyme pour empêcher d'écraser les node_modules du conteneur
+      - /app/node_modules
+    command: npm run dev
+    ports:
+      # Port supplémentaire pour brancher le débogueur VS Code / Chrome
+      - "9229:9229"
+    environment:
+      - NODE_ENV=development
+```
+
+---
+
+### 3.5 Le Fichier `daemon.json`
+
+Situé dans `/etc/docker/daemon.json` sous Linux ou dans `~/.docker/daemon.json` sous Windows et Mac, ce fichier configure le moteur Docker lui-même.
+
+En production, un serveur Docker par défaut conserve l'intégralité des logs générés par les conteneurs indéfiniment. Cela conduit inévitablement à **l'asphyxie complète du disque dur (`No space left on device`)** au bout de quelques semaines.
+
+Voici une configuration `daemon.json` durcie pour la production :
+
+```json
+{
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "50m",
+    "max-file": "3"
+  },
+  "features": {
+    "buildkit": true
+  },
+  "default-ulimits": {
+    "nofile": {
+      "Name": "nofile",
+      "Hard": 64000,
+      "Soft": 64000
+    }
+  }
+}
+```
+
+- `max-size` et `max-file` : appliquent une rotation automatique des logs (3 fichiers de 50 Mo maximum par conteneur).
+- `buildkit` : active le moteur de compilation accéléré de Docker avec cache parallèle.
+- `nofile` : augmente le nombre maximal de descripteurs de fichiers ouverts pour supporter des milliers de requêtes web concurrentes.
+
+---
+
+### 3.6 Bonus : Le Script `entrypoint.sh`
+
+Dans de nombreuses architectures, votre conteneur applicatif ne doit démarrer qu'après avoir exécuté des migrations de base de données (Prisma, TypeORM, Flyway) ou vérifié la connectivité réseau. On utilise alors un script d'entrée `entrypoint.sh` :
+
+```bash
+#!/bin/sh
+set -e
+
+echo "Attente de la disponibilité de la base de données..."
+until nc -z -v -w30 db 5432; do
+  echo "En attente du port 5432 de Postgres..."
+  sleep 2
+done
+
+echo "Application des migrations de base de données..."
+npx prisma migrate deploy
+
+echo "Démarrage du processus applicatif principal..."
+exec "$@"
+```
+
+> **L'instruction `exec "$@"` :** Elle est cruciale. Elle remplace le processus shell du script par le processus de votre application principale (`node dist/main.js`). Votre application hérite ainsi du `PID 1` et reçoit correctement les signaux UNIX système (`SIGTERM`, `SIGINT`) pour réaliser des arrêts gracieux (*Graceful Shutdown*).
+
+---
+
+## 4. Les Commandes Vitales du Quotidien Docker
+
+```bash
+# Lancer les conteneurs en arrière-plan
+docker compose up -d
+
+# Voir les conteneurs actifs et leur consommation mémoire/CPU
+docker ps
+docker stats
+
+# Consulter les logs en temps réel d'un service
+docker compose logs -f api
+
+# Exécuter une commande dans un conteneur en cours d'exécution
+docker compose exec api sh
+
+# Nettoyer les images orphelines, conteneurs arrêtés et caches de build inutilisés
+docker system prune -af --volumes
+```
