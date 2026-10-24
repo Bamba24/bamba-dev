@@ -1,0 +1,200 @@
+---
+title: "Inside LLMs: Tokens, Context Windows, Request Processing, and Cost Architecture"
+description: "Understand the inner workings of AI models: BPE tokenization, self-attention, autoregressive generation, prompt caching, and cost-effective tokenomics strategies."
+tag: "IA"
+publishedAt: "2026-10-08"
+published: true
+time: 14
+---
+
+# Inside LLMs: Tokens, Context Windows, Request Processing, and Cost Architecture
+
+Generative artificial intelligence and Large Language Models (LLMs) have fundamentally transformed software engineering. Yet to many developers, an LLM still feels like a magical black box: send a raw string, wait a brief moment, and stream back formatted text.
+
+Once you deploy AI capabilities to production environments, technical and financial constraints quickly emerge:
+- *Why did our API bill quadruple this month?*
+- *Why is text output generated sequentially word by word while input prompts process near-instantly?*
+- *Why do output tokens cost 3 to 5 times more than input tokens?*
+
+In this engineering guide, we open up the Transformer architecture to uncover **what tokens actually are**, how a request travels from input to output, how the **context window** operates, and how to master **AI tokenomics and cost control**.
+
+---
+
+## 1. What is a Token? The Core Currency of AI 🪙
+
+Unlike humans, **a Large Language Model does not read individual letters or full natural words**. It computes exclusively on sequences of numerical integers called **Tokens**.
+
+### Byte-Pair Encoding (BPE) Tokenization
+
+Modern frontier models (GPT-4o, Claude 3.5, Gemini 2.0, Llama 3) rely on subword tokenization algorithms such as **Byte-Pair Encoding (BPE)** or **SentencePiece**:
+
+1. Frequent English words represent a single token: `"developer"` ➔ 1 token.
+2. Infrequent, compound, or lengthy words are split into subword fragments: `"antidisestablishment"` ➔ 5 tokens (`["anti", "dis", "establish", "ment"]`).
+3. Whitespace characters, newlines, and punctuation count as independent tokens (a leading space changes the numerical ID of a word).
+4. In source code, four spaces of indentation or a curly brace `{` constitutes a distinct token.
+
+```txt
+Raw Text : "Artificial intelligence transforms software code."
+              │
+              ▼ Tokenization Algorithm (~128,000 token vocabulary)
+Subwords :    ["Artificial", " intelligence", " transforms", " software", " code", "."]
+              │
+              ▼ Numerical Integer Encoding
+Integer IDs : [18420,        19842,           11204,         4381,       2910,   13]
+```
+
+<Note>
+**Language Impact on Pricing:**
+Tokenizers are heavily trained on English corpora. In English, **1 word equals roughly 1.3 tokens**. In non-English languages (such as French, Spanish, or German) or Asian scripts (Chinese, Japanese), **1 word often consumes 1.5 to 2.5 tokens** due to multi-byte UTF-8 representations. A prompt in French can cost up to 30% more in tokens than its English equivalent!
+</Note>
+
+---
+
+## 2. Request Lifecycle: From Input to Output 🔄
+
+How does a foundation model translate your prompt into an articulate response? This lifecycle spans four primary phases:
+
+```txt
+[ 1. RAW USER PROMPT ]
+          │
+          ▼ (BPE Tokenization)
+[ 2. NUMERICAL TOKEN IDS ]
+          │
+          ▼ (Vector Projection / Embeddings)
+[ 3. HIGH-DIMENSIONAL EMBEDDING SPACE (d = 4096 dimensions) ]
+          │
+          ▼ (Multi-Head Self-Attention Transformer Layers)
+[ 4. SOFTMAX PROBABILITY DISTRIBUTION ACROSS 128,000 TOKENS ]
+          │
+          ▼ (Next-token selection: Sampling & Decoding)
+[ 5. SINGLE TOKEN OUTPUT ] ──► Appended to input for the next cycle!
+```
+
+### Phase A: Parallel Input Processing (Prompt Ingestion)
+
+When you submit a 2,000-token prompt:
+1. The text is mapped into vectors of embeddings.
+2. Modern GPU architectures (such as Nvidia H100 clusters or Google TPUs) **process all 2,000 input tokens simultaneously in parallel**.
+3. The **Multi-Head Self-Attention** layers compute mathematical attention matrices between all tokens (e.g., establishing that the pronoun *"it"* links to the noun *"server"* mentioned paragraphs earlier).
+
+Because GPUs thrive on parallel matrix multiplications, ingesting massive prompts takes only a fraction of a second.
+
+### Phase B: Autoregressive Sequential Generation (Output)
+
+Unlike input ingestion, **the model CANNOT generate its output in a single batch**.
+
+LLMs operate through **sequential autoregression**:
+1. The model predicts the **first token** of its answer.
+2. It takes that token and appends it to the running conversation context.
+3. It re-evaluates the expanded context to predict the **second token**.
+4. It loops continuously until emitting a terminal stop token: `<|end_of_text|>`.
+
+```txt
+Autoregressive loop:
+Initial Prompt                  ➔ Predicts: "The"
+Prompt + "The"                   ➔ Predicts: "database"
+Prompt + "The database"          ➔ Predicts: "is"
+Prompt + "The database is"       ➔ Predicts: "ready"
+Prompt + ... + "ready"           ➔ Predicts: <STOP>
+```
+
+This physical reality explains why output streams character-by-character over the network using **Server-Sent Events (SSE)**!
+
+### Temperature & Sampling Strategies
+
+At each generation step, the model computes raw logits transformed via Softmax into a probability curve over 128,000 possible vocabulary tokens:
+
+- **Temperature = 0 (Greedy / Deterministic)**: The model consistently chooses the token with the highest mathematical probability (essential for SQL schemas, JSON parsing, and arithmetic).
+- **Temperature = 0.7 to 1.0 (Creative)**: The model samples probabilistically among top candidates, fostering narrative diversity.
+- **Top-P (Nucleus Sampling)**: Dynamically truncates the candidate pool to the smallest set of tokens whose cumulative probability exceeds threshold P (e.g., 90%), eliminating erratic hallucinations.
+
+---
+
+## 3. The Context Window & The Prompt Caching Breakthrough 🧠
+
+The **context window** defines the total volume of tokens (system instructions + user prompt + chat history + generated response) that the model can maintain in active memory at any single moment.
+
+### The Expansion of Context Windows
+
+| Model | Year | Context Window Capacity | Book Equivalent |
+| :--- | :--- | :--- | :--- |
+| **GPT-3** | 2020 | 2,048 tokens | ~4 pages |
+| **GPT-3.5-Turbo** | 2023 | 4,096 to 16,000 tokens | ~30 pages |
+| **GPT-4o / Claude 3.5 Sonnet**| 2024 | 128,000 to 200,000 tokens | ~400 pages (A full novel) |
+| **Gemini 1.5 Pro / 2.0 Flash** | 2025 | 1,000,000 to 2,000,000 tokens | ~1 hour of video or 50,000 lines of code |
+
+### The "Lost in the Middle" Dilemma
+
+Even with a 200,000-token capacity, attention heads demonstrate a U-shaped retention curve:
+- High accuracy on instructions placed at the **very start of the prompt** (System Prompt).
+- High recall on recent dialogue located at the **very end of the prompt**.
+- Reduced attention and retrieval accuracy for subtle facts buried **in the middle** of a 100,000-token document.
+
+### The Financial Game-Changer: Prompt Caching (KV-Cache)
+
+Previously, using an autonomous coding assistant with a 60,000-token repository context meant re-paying for the analysis of those 60,000 tokens **on every interaction**.
+
+Leading AI providers (Anthropic, OpenAI, DeepSeek, Google) introduced **Prompt Caching**:
+- The intermediate key-value attention vectors (KV-cache) of static prefixes remain **persisted in GPU memory** for short durations.
+- When subsequent requests share the identical prefix, the model resumes execution immediately without recalculating prior layers.
+- **Impact**: **50% to 90% savings** on input token costs and up to an 80% reduction in time-to-first-token (TTFT) latency!
+
+---
+
+## 4. AI Model Landscape & Cost Architecture (Tokenomics) 💰
+
+Why does every provider price input tokens and output tokens separately?
+
+```txt
+┌────────────────────────────────────────────────────────┐
+│           WHY DO OUTPUT TOKENS COST MORE?              │
+├────────────────────────────────────────────────────────┤
+│ • Input Tokens: Processed simultaneously in parallel.  │
+│   Massive hardware utilization on tensor cores.        │
+│                                                        │
+│ • Output Tokens: Processed sequentially one-by-one.    │
+│   The entire multi-billion parameter model must be run │
+│   for every single token generated.                    │
+│                                                        │
+│ 👉 RESULT: Output tokens routinely cost 3x to 5x       │
+│   more than input tokens!                              │
+└────────────────────────────────────────────────────────┘
+```
+
+### Industry Benchmark Pricing (Indicative Costs per 1M Tokens)
+
+| Category | Reference Models | Input / 1M Tokens | Output / 1M Tokens | Best Use Cases |
+| :--- | :--- | :--- | :--- | :--- |
+| **Fast & Lightweight** | GPT-4o-mini, Claude 3.5 Haiku, Gemini 2.0 Flash | ~$0.075 to $0.80 | ~$0.30 to $4.00 | Triage, customer support, JSON data extraction, text tagging |
+| **Flagship Workhorses** | Claude 3.5 Sonnet, GPT-4o | ~$3.00 | ~$15.00 | Complex architecture, code refactoring, nuanced writing |
+| **Reasoning Models (CoT)** | OpenAI o1, o3-mini, DeepSeek R1, Gemini Thinking | ~$1.10 to $15.00 | ~$4.40 to $60.00 | Advanced mathematics, security audits, intricate logic trees |
+
+### The Hidden Cost of "Reasoning Tokens"
+
+Next-generation reasoning models (OpenAI o1, o3-mini, DeepSeek R1) execute a dynamic internal chain-of-thought prior to emitting their final answer.
+
+When prompted with a thorny algorithm challenge, the model might produce **5,000 invisible thinking tokens** that are never shown in the visible markdown response.
+However, **these reasoning tokens are billed at the higher output token rate**! An innocent-looking 2-sentence output can easily cost dollars if the internal thinking cycle was extensive.
+
+---
+
+## 5. Production Cost Optimization Strategies
+
+To keep production cloud expenditures within budget, implement these architectural patterns:
+
+1. **Model Routing (Cascading)**:
+   Avoid funneling all user queries into Claude 3.5 Sonnet or GPT-4o. Route conversational pleasantries and basic classifications through inexpensive models (Gemini Flash or GPT-4o-mini), escalating to flagship models only when complexity dictates.
+2. **Context Pruning & Sliding Windows**:
+   In multi-turn chat applications, avoid blindly echoing 40 prior messages. Retain the initial system prompt, summarize older history, and retain only the last 6 raw turns.
+3. **Structure Prompts for KV-Cache Hits**:
+   Order your prompts consistently: static system guidelines first, reference documentation second, dynamic user input last. Any change early in the prompt invalidates downstream caching.
+4. **Constrain Output with `max_tokens`**:
+   Always specify a bounded `max_tokens` ceiling. If you expect a status ID or a boolean, cap generation at 50 tokens to eliminate runaway verbosity.
+
+---
+
+## Conclusion
+
+In the era of modern AI engineering, software systems manipulate more than physical RAM and persistent SSDs: they coordinate token streams, KV-cache checkpoints, and attention distributions across distributed GPU infrastructure.
+
+Mastering subword tokenization, sequential generation dynamics, and tokenomic cost trade-offs allows engineering teams to graduate from experimental prototypes to sustainable, profitable, enterprise-scale AI applications.
