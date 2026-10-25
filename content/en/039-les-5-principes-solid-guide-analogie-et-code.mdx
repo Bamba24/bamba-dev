@@ -1,0 +1,323 @@
+---
+title: "The 5 SOLID Principles Explained Simply: Real-World Analogies and TypeScript Code"
+description: "Demystify SOLID (SRP, OCP, LSP, ISP, DIP) through intuitive real-world metaphors and before/after TypeScript code examples."
+tag: "CleanCode"
+publishedAt: "2026-10-25"
+published: true
+time: 20
+---
+
+# The 5 SOLID Principles Explained Simply: Real-World Analogies and TypeScript Code
+
+In technical interviews and architectural reviews, the acronym **SOLID** is celebrated as the holy grail of object-oriented design. Yet for many developers, these five principles remain intimidating, academic concepts obscured by dense terminology.
+
+Popularized by Robert C. Martin (*Uncle Bob*) in the early 2000s, the SOLID principles are practical remedies against **Code Rot**. They prevent codebases from becoming fragile, rigid, and impossible to unit-test.
+
+Here is the definitive guide to mastering SOLID using **intuitive real-world analogies** and concrete **before-and-after TypeScript examples**.
+
+---
+
+```txt
+┌────────────────────────────────────────────────────────────────────────┐
+│                        THE 5 S.O.L.I.D. PRINCIPLES                     │
+├──────────────────────────┬─────────────────────────────────────────────┤
+│ S — Single Responsibility│ One class = One single reason to change     │
+│ O — Open / Closed        │ Open for extension, closed for modification │
+│ L — Liskov Substitution  │ Subtypes must honor parent contracts        │
+│ I — Interface Segregation│ Prefer small specific interfaces over giants │
+│ D — Dependency Inversion │ Depend on abstractions, not concrete details│
+└──────────────────────────┴─────────────────────────────────────────────┘
+```
+
+---
+
+## 1. 🔪 S — Single Responsibility Principle (SRP)
+
+> **Principle:** A class or module should have one, and only one, reason to change.
+
+### The Real-World Analogy
+> **The Swiss Army Knife Analogy:** A Swiss army knife contains a blade, a corkscrew, scissors, and a saw. While handy on a camping trip, no executive chef in a Michelin-starred kitchen cuts salmon using a Swiss army knife. If the blade snaps, the entire unit goes to the repair shop, taking the scissors and corkscrew with it. In professional software, tools must have one dedicated responsibility executed reliably.
+
+### TypeScript Example
+
+#### ❌ Before: The God Object (Violating SRP)
+A single class handling business validation, database persistence, email notifications, and filesystem logging:
+
+```typescript
+// ❌ 4 DIFFERENT REASONS TO CHANGE
+class UserManager {
+  async registerUser(email: string, password: string) {
+    if (!email.includes("@")) throw new Error("Invalid email");
+
+    const user = await db.user.create({ data: { email, password } });
+
+    const mailClient = new SmtpClient();
+    await mailClient.send(email, "Welcome to our platform!");
+
+    fs.appendFileSync("server.log", `User registered: ${email}`);
+  }
+}
+```
+
+#### ✅ After: Separated Responsibilities
+
+```typescript
+class UserRepository {
+  async save(user: UserData) {
+    return db.user.create({ data: user });
+  }
+}
+
+class EmailNotificationService {
+  async sendWelcomeEmail(email: string) {
+    await emailProvider.send(email, "Welcome!");
+  }
+}
+
+class UserRegistrationUseCase {
+  constructor(
+    private userRepo: UserRepository,
+    private emailService: EmailNotificationService
+  ) {}
+
+  async execute(email: string, passwordHash: string) {
+    const user = await this.userRepo.save({ email, passwordHash });
+    await this.emailService.sendWelcomeEmail(email);
+    return user;
+  }
+}
+```
+
+---
+
+## 2. 🔌 O — Open / Closed Principle (OCP)
+
+> **Principle:** Software entities should be **open for extension**, but **closed for modification**.
+
+### The Real-World Analogy
+> **The Wall Socket Analogy:** When you buy a new vacuum cleaner or gaming console, you do not tear down your apartment walls to solder power cables directly into the breaker box. The wall socket is **closed for modification** (the internal wiring remains untouched), but **open for extension** (any appliance adhering to the standard plug interface connects immediately).
+
+### TypeScript Example
+
+#### ❌ Before: The Growing `switch-case` (Violating OCP)
+
+```typescript
+// ❌ MUST BE RE-OPENED AND EDITED FOR EVERY NEW PAYMENT PROVIDER
+class PaymentProcessor {
+  processPayment(amount: number, method: string) {
+    if (method === "STRIPE") {
+      stripe.charge(amount);
+    } else if (method === "PAYPAL") {
+      paypal.sendPayment(amount);
+    } else if (method === "WAVE") {
+      wave.transfer(amount);
+    }
+  }
+}
+```
+
+#### ✅ After: Polymorphic Extension via Contracts
+
+```typescript
+interface PaymentGateway {
+  charge(amount: number): Promise<void>;
+}
+
+class StripePayment implements PaymentGateway {
+  async charge(amount: number) { /* Stripe logic */ }
+}
+
+class WavePayment implements PaymentGateway {
+  async charge(amount: number) { /* Wave logic */ }
+}
+
+class CheckoutService {
+  async process(gateway: PaymentGateway, amount: number) {
+    await gateway.charge(amount);
+  }
+}
+```
+
+---
+
+## 3. 🦆 L — Liskov Substitution Principle (LSP)
+
+> **Principle:** Subtypes must be substitutable for their base types without altering program correctness.
+
+### The Real-World Analogy
+> **The Rubber Duck Analogy:** *"If it looks like a duck, swims like a duck, and quacks like a duck, but needs batteries to function... you have the wrong abstraction!"*. If a child class inherits from a parent but throws exceptions on core parent methods, substitution is broken.
+
+### TypeScript Example
+
+#### ❌ Before: The Classic Rectangle and Square Trap
+
+```typescript
+class Rectangle {
+  constructor(protected width: number, protected height: number) {}
+  setWidth(w: number) { this.width = w; }
+  setHeight(h: number) { this.height = h; }
+  getArea(): number { return this.width * this.height; }
+}
+
+// ❌ SQUARE BREAKS RECTANGLE INVARIANTS
+class Square extends Rectangle {
+  setWidth(w: number) {
+    this.width = w;
+    this.height = w;
+  }
+  setHeight(h: number) {
+    this.width = h;
+    this.height = h;
+  }
+}
+
+function resize(rect: Rectangle) {
+  rect.setWidth(5);
+  rect.setHeight(4);
+  // For a Rectangle, 5 * 4 = 20.
+  // For a Square, both sides become 4 -> Area is 16!
+  console.assert(rect.getArea() === 20, "Liskov violation!");
+}
+```
+
+#### ✅ After: Extract Common Contract
+
+```typescript
+interface Shape {
+  getArea(): number;
+}
+
+class Rectangle implements Shape {
+  constructor(private width: number, private height: number) {}
+  getArea() { return this.width * this.height; }
+}
+
+class Square implements Shape {
+  constructor(private side: number) {}
+  getArea() { return this.side * this.side; }
+}
+```
+
+---
+
+## 4. 🎛️ I — Interface Segregation Principle (ISP)
+
+> **Principle:** Clients should not be forced to depend upon interfaces that they do not use.
+
+### The Real-World Analogy
+> **The 150-Button TV Remote Analogy:** Imagine a universal remote with 150 buttons: air conditioner control, garage opener, drone flight, and channel switching. To turn on your TV, you must carry a 5-pound remote with 140 buttons you will never touch. It is far better to have a dedicated television remote and a separate garage remote.
+
+### TypeScript Example
+
+#### ❌ Before: The Bloated Interface
+
+```typescript
+// ❌ MONOLITHIC CONTRACT FORCING UNWANTED METHODS
+interface WorkerContract {
+  code(): void;
+  attendMeetings(): void;
+  eatLunch(): void;
+  sleep(): void;
+}
+
+class AiCodingAgent implements WorkerContract {
+  code() { /* emits code */ }
+  attendMeetings() { /* non-applicable */ }
+  eatLunch() { throw new Error("AI agents do not eat!"); }
+  sleep() { throw new Error("AI agents do not sleep!"); }
+}
+```
+
+#### ✅ After: Segregated Role Interfaces
+
+```typescript
+interface Codeable {
+  code(): void;
+}
+
+interface Meetable {
+  attendMeetings(): void;
+}
+
+class AiCodingAgent implements Codeable {
+  code() { console.log("Generating code..."); }
+}
+
+class HumanEngineer implements Codeable, Meetable {
+  code() { /* code */ }
+  attendMeetings() { /* meeting */ }
+}
+```
+
+---
+
+## 5. 🧱 D — Dependency Inversion Principle (DIP)
+
+> **Principle:** High-level modules should not depend on low-level modules. Both should depend on abstractions.
+
+### The Real-World Analogy
+> **The Bedside Lamp Analogy:** Imagine that in order to power a reading lamp, you had to solder its copper wires directly to the municipal power grid on your street. Replacing your lamp would require shutting down power for the whole block. Standardized wall outlets provide an abstraction decoupling the lamp from the electrical grid.
+
+### TypeScript Example
+
+#### ❌ Before: Hardwired Low-Level Drivers
+
+```typescript
+import { MySQLDriver } from "./drivers/MySQLDriver";
+
+// ❌ HIGH-LEVEL BUSINESS LOGIC BOUND TO MYSQL
+class OrderService {
+  private db: MySQLDriver;
+
+  constructor() {
+    this.db = new MySQLDriver("localhost:3306");
+  }
+
+  async createOrder(item: string) {
+    await this.db.query(`INSERT INTO orders VALUES ('${item}')`);
+  }
+}
+```
+
+#### ✅ After: Dependency Injection via Abstraction
+
+```typescript
+interface OrderRepository {
+  save(item: string): Promise<void>;
+}
+
+class OrderService {
+  constructor(private orderRepo: OrderRepository) {}
+
+  async createOrder(item: string) {
+    await this.orderRepo.save(item);
+  }
+}
+
+// Low-level PostgreSQL implementation
+class PostgresOrderRepository implements OrderRepository {
+  async save(item: string) {
+    await pgClient.query("INSERT INTO orders ($1)", [item]);
+  }
+}
+
+// Instant test mock without database dependencies!
+class InMemoryOrderRepository implements OrderRepository {
+  public items: string[] = [];
+  async save(item: string) {
+    this.items.push(item);
+  }
+}
+```
+
+---
+
+## 📊 Summary Reference Matrix
+
+| Letter | Principle | Core Analogy | Engineering Rule |
+| :---: | :--- | :--- | :--- |
+| **S** | **Single Responsibility** | The Swiss Army Knife | One class = One well-defined job. |
+| **O** | **Open / Closed** | The Wall Socket | Add new features by adding code, not modifying tested code. |
+| **L** | **Liskov Substitution** | The Rubber Duck | Subclasses must honor parent contracts without raising unexpected exceptions. |
+| **I** | **Interface Segregation** | The TV Remote | Split oversized interfaces into lean, role-focused contracts. |
+| **D** | **Dependency Inversion** | The Bedside Lamp | Inject interfaces, never hardcode concrete technical dependencies. |
