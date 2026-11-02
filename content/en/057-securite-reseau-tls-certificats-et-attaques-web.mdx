@@ -1,0 +1,172 @@
+---
+title: "Network Security and TLS 1.3: Cryptography and API Protection"
+description: "Understand end-to-end network security: hybrid encryption, TLS 1.3 handshake, X.509 certificates, mTLS, HSTS, and defending against MITM attacks."
+tag: "Security"
+publishedAt: "2026-10-28"
+published: true
+time: 13
+---
+
+# Network Security and TLS 1.3: Cryptography and API Protection
+
+Connect your laptop to an airport or coffee shop public Wi-Fi network. Fire up a packet analyzer like Wireshark. If applications on your computer communicated in plaintext over ordinary HTTP, anyone on that local subnet could capture your authentication tokens, passwords, and private data with a few keystrokes.
+
+Today, over 95% of web traffic is encrypted. Yet, for many software developers, **HTTPS and TLS** remain hand-wavy abstractions represented by a green padlock and a Let's Encrypt bot running in the background.
+
+When you need to configure mutual authentication (**mTLS**) between microservices, harden security headers against downgrade attacks (*SSL Stripping*), or diagnose why a backend client rejects an X.509 certificate chain, mastering **network security fundamentals** is essential.
+
+---
+
+<Youtube id="WvSVSbGo0wI" />
+
+---
+
+## 1. Hybrid Cryptography: The Core of TLS
+
+Why don't we simply encrypt all web traffic using asymmetric public/private keys?
+
+The answer comes down to **computational overhead**:
+- Asymmetric cryptography (RSA, elliptic curves like ECDHE) requires heavy mathematical modular arithmetic on massive integers.
+- Symmetric encryption (AES-256-GCM, ChaCha20-Poly1305) is blazingly fast and accelerated in silicon via CPU instructions (AES-NI).
+
+TLS solves this dilemma with a **hybrid cryptographic architecture**:
+
+```txt
+┌────────────────────────────────────────────────────────┐
+│               1. HANDSHAKE (Asymmetric)                │
+│ Server authentication + Negotiation of an ephemeral    │
+│ shared session key (ECDHE Key Exchange).               │
+└──────────────────────────┬─────────────────────────────┘
+                           │
+                           ▼
+┌────────────────────────────────────────────────────────┐
+│            2. DATA TRANSFER (Symmetric)                │
+│ High-throughput encryption of HTTP payloads using      │
+│ the negotiated session key (AES-GCM / 10 Gbps+).       │
+└────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 2. The TLS 1.3 Handshake: Faster and More Resilient
+
+Historically, **TLS 1.2** required two full network round-trips (2 RTT) before a client could transmit its first byte of encrypted HTTP data.
+
+**TLS 1.3** radically improved web performance and security by purging deprecated cryptographic primitives and dropping handshake latency to **a single round-trip (1 RTT)**:
+
+```txt
+Client                                            Server
+  │                                                  │
+  │ ─── Client Hello ──────────────────────────────> │
+  │     (Supported Ciphers + ECDHE Key Share)        │
+  │                                                  │
+  │ <── Server Hello + Certificate + ECDHE Key Share │
+  │     (Derives Symmetric Key Instantly)            │
+  │                                                  │
+  ▼ [ ENCRYPTED TUNNEL ESTABLISHED - 1 RTT ]         │
+  │                                                  │
+  │ ─── Encrypted Application Data (HTTP GET) ─────> │
+```
+
+### Vulnerabilities Purged in TLS 1.3:
+- Deprecated weak hashing algorithms (MD5, SHA-1).
+- Outlawed RC4 stream ciphers and CBC block modes (responsible for POODLE, BEAST, and Lucky 13 attacks).
+- Abolished static RSA key exchanges in favor of **Perfect Forward Secrecy (PFS)** via ephemeral Diffie-Hellman (ECDHE): even if an attacker compromises the server's private key five years from now, past traffic recorded off the wire remains unbreakable.
+
+---
+
+## 3. X.509 Certificates and the Chain of Trust
+
+A digital certificate is an identity document cryptographically tying a public key to an authorized domain name. How does a browser verify that this document has not been forged?
+
+Through the **Chain of Trust**:
+
+```txt
+[ Root Certificate Authority (Root CA) ]
+(Embedded directly in your OS / Browser: DigiCert, Let's Encrypt ISRG Root X1)
+       │ (Cryptographic Signature)
+       ▼
+[ Intermediate CA ]
+(e.g., Let's Encrypt R3)
+       │ (Cryptographic Signature)
+       ▼
+[ Leaf Certificate (Your Server Certificate) ]
+(api.mydomain.com)
+```
+
+### Essential TLS Extensions:
+- **SNI (Server Name Indication):** Transmits the requested hostname in plaintext during the initial Client Hello, allowing a single reverse proxy (Nginx, Envoy) to host hundreds of distinct HTTPS domains on a single IP address.
+- **ALPN (Application-Layer Protocol Negotiation):** Negotiates higher-level protocols (HTTP/1.1, HTTP/2, or HTTP/3) inside the TLS handshake without an extra network round-trip.
+
+---
+
+## 4. Crucial HTTP Security Headers
+
+Network encryption is incomplete if a browser can be tricked into falling back to unencrypted transports.
+
+### A. HSTS (HTTP Strict Transport Security)
+Guards against *SSL Stripping* attacks where an on-path attacker intercepts an unencrypted HTTP redirect:
+```http
+Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
+```
+This header instructs the browser to **never** issue an unencrypted HTTP request to this domain or its subdomains for the next two years.
+
+### B. Demystifying CORS: Why CORS is NOT Server Security
+> [!CAUTION]
+> A widespread misconception among engineers is assuming CORS protects APIs against attacks. **It does not.** CORS is a security mechanism enforced solely by *web browsers* to prevent malicious client-side scripts from reading responses across domains. Terminal tools like `curl`, Python automation scripts, and attackers completely bypass CORS.
+
+---
+
+## 5. mTLS (Mutual TLS): Authenticating Both Sides
+
+In typical HTTPS setups, only the server proves its identity to the client. The client remains anonymous until sending application credentials or bearer tokens.
+
+In Zero-Trust microservices environments, we implement **mTLS (Mutual TLS)**: both client and server cryptographically verify each other's certificates.
+
+```txt
+[ Order Service ] ◄── Bilateral mTLS Handshake ──► [ Payment Service ]
+(Verifies Payment Certificate)             (Verifies Order Certificate)
+```
+
+Configuring a high-security mTLS client in strict TypeScript:
+
+```typescript
+import * as https from 'node:https';
+import * as fs from 'node:fs';
+
+export interface MtlsConfig {
+  readonly caCertPath: string;
+  readonly clientCertPath: string;
+  readonly clientKeyPath: string;
+}
+
+export function createSecureMtlsAgent(config: MtlsConfig): https.Agent {
+  return new https.Agent({
+    // Internal Root CA certificate used to validate upstream servers
+    ca: fs.readFileSync(config.caCertPath),
+    // Client identity certificate presented during handshake
+    cert: fs.readFileSync(config.clientCertPath),
+    // Client private key
+    key: fs.readFileSync(config.clientKeyPath),
+    // Reject untrusted or expired certificates strictly
+    rejectUnauthorized: true,
+    // Enforce modern TLS 1.3 standard
+    minVersion: 'TLSv1.3',
+    // Enable socket keep-alive to reuse handshakes
+    keepAlive: true,
+    keepAliveMsecs: 30_000,
+  });
+}
+```
+
+---
+
+## 6. Network Attack Vectors and Operating System Defenses
+
+| Attack Vector | Mechanism | System / Network Mitigation |
+| :--- | :--- | :--- |
+| **SYN Flood** | Attacker spams `SYN` packets without completing `ACK`s, exhausting the kernel's connection backlog table. | Enable **SYN Cookies** (`sysctl -w net.ipv4.tcp_syncookies=1`). State is cryptographically encoded in the sequence number without allocating kernel memory. |
+| **Slowloris** | Attacker opens hundreds of HTTP sockets and drips request headers one byte at a time, holding threads hostage. | Deploy a non-blocking reverse proxy (Nginx, Envoy) configured with strict `client_header_timeout` policies. |
+| **Man-in-the-Middle (MITM)** | Attacker intercepts or modifies unencrypted traffic on local gateways. | Enforce strict TLS 1.3, configure HSTS Preload, and inspect Certificate Transparency logs. |
+
+Understanding network cryptography, the TLS handshake, and certificate verification architectures empowers developers to harden APIs and engineer resilient, zero-trust cloud applications.

@@ -1,0 +1,172 @@
+---
+title: "Reverse Proxy et Load Balancing L4/L7 : Guide Haute Disponibilité"
+description: "Passez à l'échelle : Reverse Proxy vs Forward Proxy, Load Balancing L4 vs L7, algorithmes de répartition, health checks et configuration Nginx."
+tag: "DevOps"
+publishedAt: "2026-10-30"
+published: true
+time: 13
+---
+
+# Reverse Proxy et Load Balancing L4/L7 : Guide Haute Disponibilité
+
+Votre application web commence à rencontrer un franc succès. Pour absorber la hausse de trafic, vous provisionnez deux nouveaux serveurs. Mais une question immédiate se pose : 
+
+Comment répartir équitablement les milliers d'utilisateurs entre ces trois machines ? Que se passe-t-il si le serveur numéro 2 subit un crash matériel en plein milieu de la nuit ? Les utilisateurs vont-ils recevoir une page d'erreur 502, ou le trafic sera-t-il redirigé instantanément et de manière transparente vers les machines survivantes ?
+
+C'est le rôle fondamental du **Reverse Proxy** et du **Load Balancer** (équilibreur de charge). Sans eux, aucune architecture moderne ne peut prétendre à la haute disponibilité ni au passage à l'échelle (*scaling*).
+
+---
+
+<Youtube id="dBmxNsS3BGE" />
+
+---
+
+## 1. Forward Proxy vs Reverse Proxy : Clarifier la Confusion
+
+Bien que les deux outils interceptent le trafic réseau, leur mission et leur orientation sont diamétralement opposées :
+
+```txt
+[ CLIENT ] ──> [ FORWARD PROXY ] ──> [ INTERNET PUBLIC ] ──> [ SERVEURS DISTANTS ]
+(Protège le client : anonymat, filtrage d'entreprise, cache sortant)
+
+[ INTERNET PUBLIC ] ──> [ REVERSE PROXY ] ──> [ SERVEURS D'APPLICATION INTERNES ]
+(Protège le serveur : équilibrage de charge, déchargement SSL, cache entrant)
+```
+
+- **Forward Proxy (Proxy Amont) :** Se situe devant les clients. Il masque l'adresse IP des utilisateurs, filtre les accès d'un réseau d'entreprise (ex: bloquer certains sites) et met en cache les téléchargements externes.
+- **Reverse Proxy (Proxy Inverse) :** Se situe devant les serveurs d'application. Du point de vue de l'utilisateur, le reverse proxy *est* le site web. Il dissimule la topologie interne, termine le chiffrement HTTPS et distribue la charge de travail.
+
+---
+
+## 2. Load Balancing Couche 4 (L4) vs Couche 7 (L7)
+
+Dans l'ingénierie d'infrastructure, on distingue deux grands types d'équilibreurs de charge selon le niveau de la pile réseau où s'opère la décision de routage :
+
+```txt
+┌────────────────────────────────────────────────────────┐
+│                   LOAD BALANCER L4                     │
+│  Prend des décisions au niveau TCP / UDP (IP et Port)  │
+│  - Ultra-rapide (millions de paquets/sec)              │
+│  - N'inspecte jamais le contenu des requêtes HTTP      │
+│  - Exemples : AWS Network Load Balancer (NLB), IPVS    │
+└────────────────────────────────────────────────────────┘
+
+┌────────────────────────────────────────────────────────┐
+│                   LOAD BALANCER L7                     │
+│  Prend des décisions au niveau Applicatif (HTTP/HTTPS) │
+│  - Terminaison SSL complète                            │
+│  - Routage par chemin d'URL (/api vs /images)          │
+│  - Routage par En-têtes, Cookies ou Méthode HTTP       │
+│  - Exemples : Nginx, HAProxy, Envoy, Traefik, AWS ALB  │
+└────────────────────────────────────────────────────────┘
+```
+
+> [!TIP]
+> Dans les architectures d'entreprise à fort trafic, on combine souvent les deux : un répartiteur L4 ultra-rapide en frontal distribue les paquets bruts vers un cluster d'équilibreurs L7 (Envoy ou Nginx), qui gèrent la logique applicative fine.
+
+---
+
+## 3. Les Grands Algorithmes de Répartition de Charge
+
+Comment le Load Balancer choisit-il quelle machine doit traiter la prochaine requête ?
+
+### 1. Round Robin (Tour de Rôle)
+Les requêtes sont distribuées séquentiellement : Serveur 1, puis Serveur 2, puis Serveur 3, puis de nouveau Serveur 1.
+- *Idéal pour :* Des serveurs homogènes avec des requêtes de complexité similaire.
+
+### 2. Weighted Round Robin (Tour de Rôle Pondéré)
+Si votre parc comporte un serveur puissant avec 32 Go de RAM et deux petites machines de 8 Go, vous attribuez un poids (*weight*) proportionnel : la machine puissante recevra 4 requêtes sur 6.
+
+### 3. Least Connections (Moindres Connexions)
+Le répartiteur envoie la nouvelle requête au serveur qui gère actuellement le moins de connexions actives.
+- *Idéal pour :* Les requêtes de durée imprévisible (téléchargement de gros fichiers, calculs SQL longs, sessions WebSocket persistantes).
+
+### 4. IP Hash & Sticky Sessions (Affinité de Session)
+Le hash de l'adresse IP du client détermine toujours le même serveur de destination.
+- *Risque majeur :* Si un serveur redémarre, tous les utilisateurs qui lui étaient liés perdent leur session si celle-ci n'est pas externalisée dans un cache partagé (Redis).
+
+### 5. Consistent Hashing (Hachage Cohérent)
+Essentiel pour les caches distribués et les bases de données : l'ajout ou la suppression d'une machine ne redistribue qu'une infime fraction des clés au lieu de détruire l'ensemble du cache.
+
+---
+
+## 4. Health Checks et Tolérance aux Pannes (Failover)
+
+Un Load Balancer n'est utile que s'il est capable d'éjecter instantanément un serveur défaillant.
+
+```txt
+                 [ Load Balancer L7 ]
+                          │
+         ┌────────────────┴────────────────┐
+         ▼ (Ping /healthz OK)              ▼ (Timeout / 500 Error)
+   [ Serveur A : SAIN ]            [ Serveur B : ÉJECTÉ ❌ ]
+```
+
+### Deux stratégies complémentaires :
+- **Health Checks Actifs :** Toutes les 5 secondes, le Load Balancer émet une requête HTTP `GET /healthz` vers chaque serveur. Si un serveur renvoie trois erreurs 5xx d'affilée, il est retiré de la rotation.
+- **Health Checks Passifs :** Le Load Balancer surveille le trafic réel. Si une requête utilisateur échoue (timeout ou reset TCP), il réexpédie immédiatement la requête vers un autre serveur sain (*proxy_next_upstream*) sans que l'utilisateur ne s'en aperçoive.
+
+---
+
+## 5. Configuration de Production Nginx Optimisée
+
+Voici un fichier de configuration Nginx robuste pour un reverse proxy de production avec terminaison SSL, rate limiting et répartition de charge :
+
+```nginx
+# Configuration d'un pool de serveurs amont (Upstream)
+upstream backend_cluster {
+    # Algorithme Least Connections
+    least_conn;
+
+    server 10.0.1.11:3000 max_fails=3 fail_timeout=10s;
+    server 10.0.1.12:3000 max_fails=3 fail_timeout=10s;
+    server 10.0.1.13:3000 backup; # Machine de secours en cas de crash général
+
+    # Maintien de connexions TCP persistantes vers les serveurs applicatifs
+    keepalive 64;
+}
+
+# Définition de la zone de Rate Limiting (10 requêtes par seconde par IP)
+limit_req_zone $binary_remote_addr zone=api_limit:10m rate=10r/s;
+
+server {
+    listen 443 ssl http2;
+    server_name api.mondomaine.com;
+
+    # Certificats SSL et paramètres cryptographiques stricts
+    ssl_certificate /etc/letsencrypt/live/api.mondomaine.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/api.mondomaine.com/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+
+    # Compression des réponses HTTP à la volée
+    gzip on;
+    gzip_types text/plain application/json application/javascript text/css;
+    gzip_min_length 1024;
+
+    location / {
+        # Application du Rate Limiting avec tolérance de burst
+        limit_req zone=api_limit burst=20 nodelay;
+
+        proxy_pass http://backend_cluster;
+        proxy_http_version 1.1;
+
+        # En-têtes vitaux pour transmettre l'identité réelle du client
+        proxy_set_header Connection "";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # Timeouts stricts pour éviter l'épuisement des workers
+        proxy_connect_timeout 5s;
+        proxy_read_timeout 30s;
+        proxy_send_timeout 10s;
+
+        # Recommencer automatiquement sur un autre nœud en cas d'erreur
+        proxy_next_upstream error timeout http_502 http_503;
+    }
+}
+```
+
+Maîtriser les rouages du reverse proxying et les stratégies d'équilibrage de charge permet d'éliminer les points uniques de défaillance (**SPOF**) et de concevoir des architectures capables d'encaisser sereinement les pics d'audience les plus intenses.

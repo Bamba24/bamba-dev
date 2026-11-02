@@ -1,0 +1,193 @@
+---
+title: "Systèmes d'Exploitation pour Développeurs : Processus, Mémoire et I/O"
+description: "Comprenez l'OS sous votre code : Processus vs Threads, mémoire virtuelle, pagination, le problème C10K, epoll et le Graceful Shutdown sous Linux."
+tag: "DevOps"
+publishedAt: "2026-10-29"
+published: true
+time: 14
+---
+
+# Systèmes d'Exploitation pour Développeurs : Processus, Mémoire et I/O
+
+Il est tentant de considérer un runtime comme Node.js, la machine virtuelle Java (JVM) ou le compilateur Go comme une couche d'abstraction autosuffisante. On installe des packages, on écrit du code asynchrone, et l'ordinateur s'occupe du reste.
+
+Puis arrive l'incident de production :
+- Votre conteneur Kubernetes est soudainement assassiné par le mystérieux **OOM Killer** (Out Of Memory).
+- Votre API Node.js refuse brutalement tout nouveau client avec l'erreur `Error: EMFILE, too many open files`.
+- Lors d'un déploiement continu, des centaines de commandes clients sont brutalement interrompues parce que votre serveur ne sait pas gérer un signal `SIGTERM`.
+
+Un grand développeur ne programme pas dans le vide : il sait comment le **noyau du système d'exploitation (Kernel)** alloue la mémoire, orchestre les processeurs et gère les entrées/sorties réseau.
+
+---
+
+<Youtube id="4rLW7zg21gI" />
+
+---
+
+## 1. Processus vs Threads : Anatomie de l'Exécution
+
+Quelle est la différence fondamentale entre un processus et un thread au niveau du système d'exploitation ?
+
+```txt
+┌─────────────────────────────────────────────────────────────────┐
+│                    PROCESSUS (Espace Isolé)                     │
+│                                                                 │
+│  [ Espace d'Adressage Virtuel : Code, Heap, Variables Globales ]│
+│                                                                 │
+│   ┌───────────────────────────┐   ┌───────────────────────────┐ │
+│   │         THREAD 1          │   │         THREAD 2          │ │
+│   │  Stack (Pile) privée      │   │  Stack (Pile) privée      │ │
+│   │  Registres CPU dédiés     │   │  Registres CPU dédiés     │ │
+│   └───────────────────────────┘   └───────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Le Processus : L'Unité d'Isolation
+- Chaque processus dispose de son **propre espace d'adressage virtuel**, totalement isolé des autres processus.
+- Si le Processus A tente d'accéder à la mémoire du Processus B, le processeur déclenche une violation d'accès immédiate (**Segmentation Fault**).
+- Créer un processus (`fork()` sous Linux) est une opération lourde : duplication des structures noyau et tables de pages.
+
+### Le Thread : L'Unité d'Exécution
+- Un thread vit *à l'intérieur* d'un processus.
+- Tous les threads d'un même processus **partagent le même tas (Heap)** et le même espace mémoire, mais possèdent leur propre **pile d'exécution (Stack)** et leurs propres registres CPU.
+- Avantage : Communication ultra-rapide sans sérialisation réseau.
+- Risque : Si deux threads écrivent simultanément sur la même variable sans verrou (*Mutex*), vous créez des corruptions de données indétectables (**Race Conditions**).
+
+### Le Coût Caché du Context Switching (Changement de Contexte)
+Le processeur ne peut exécuter qu'un nombre fini de threads en parallèle (égal au nombre de cœurs CPU physiques). Lorsque l'OS passe d'un thread à un autre :
+1. Il sauvegarde les registres CPU du thread sortant en mémoire.
+2. Il charge les registres du thread entrant.
+3. Il invalide fréquemment le cache de traduction de la mémoire (**TLB - Translation Lookaside Buffer**).
+> [!WARNING]
+> Avoir 10 000 threads OS concurrents sur une machine à 4 cœurs détruit les performances : le CPU passe plus de temps à changer de contexte qu'à exécuter votre code métier.
+
+---
+
+## 2. Mémoire Virtuelle, Pagination et l'OOM Killer
+
+Votre serveur dispose de 16 Go de mémoire RAM physique. Pourtant, un processus 64 bits voit un espace d'adressage virtuel théorique de **128 To**. Comment est-ce possible ?
+
+Grâce à la **Mémoire Virtuelle** gérée par l'unité matérielle du processeur (**MMU - Memory Management Unit**) :
+
+```txt
+Adresse Virtuelle (Vue par votre code)
+              │
+              ▼ (Table des Pages du Noyau / MMU)
+Adresse Physique (RAM réelle ou SWAP sur disque dur)
+```
+
+### Concepts Clés :
+- **Pages de Mémoire :** La mémoire n'est pas allouée octet par octet, mais par blocs de **4 Ko** appelés pages.
+- **Page Fault :** Lorsque votre programme tente d'accéder à une page qui n'est pas encore chargée en mémoire physique :
+  - *Minor Fault :* La page est en RAM, le noyau met simplement à jour la table de mapping.
+  - *Major Fault :* La page a été déchargée sur le disque dur (**Swap**). Le CPU doit attendre des millions de cycles que le disque lise la donnée. Si une base de données commence à "swapper", ses performances s'écroulent de 99 %.
+- **L'OOM Killer (Out Of Memory) :** Lorsque la RAM physique et le swap sont saturés, le noyau Linux invoque l'OOM Killer. Il calcule un score de sacrifice (`oom_score`) basé sur la mémoire consommée et envoie un signal impitoyable `SIGKILL` (Code 137) au processus le plus glouton pour sauver le reste de la machine.
+
+---
+
+## 3. Descripteurs de Fichiers (File Descriptors) et Limites Système
+
+Sous Linux, **tout est fichier** :
+- Un fichier sur disque : `fd`
+- Un socket TCP connecté : `fd`
+- Une socket de base de données : `fd`
+- Les flux standards `stdin`, `stdout`, `stderr` : `fd 0, 1, 2`.
+
+Chaque processus dispose d'une table de descripteurs de fichiers numérotés.
+
+```txt
+┌────────────────────────────────────────────────────────┐
+│                   PROCESSUS NODE.JS                    │
+│                                                        │
+│  fd 0: /dev/stdin                                      │
+│  fd 1: /dev/stdout                                     │
+│  fd 2: /dev/stderr                                     │
+│  fd 3: socket TCP (Client #1 - Port 443)              │
+│  fd 4: socket TCP (Connexion PostgreSQL)              │
+│  fd 5: socket TCP (Client #2 - Port 443)              │
+└────────────────────────────────────────────────────────┘
+```
+
+Si votre serveur reçoit 2 000 requêtes simultanées alors que la limite système (`ulimit -n`) est configurée à la valeur par défaut de `1024`, l'OS refuse la création du socket avec l'erreur redoutée :
+```bash
+EMFILE: too many open files
+```
+
+---
+
+## 4. Les Modèles d'I/O et le Problème C10K
+
+Au début des années 2000, le défi majeur de l'ingénierie web était le **problème C10K** : comment un seul serveur peut-il gérer 10 000 connexions concurrentes sans exploser ?
+
+### Approche Historique : I/O Bloquant Multi-Thread (Apache 1.x)
+- Un thread (ou processus) par client connecté.
+- Si le client met 5 secondes à télécharger une page, le thread est bloqué à attendre.
+- 10 000 connexions = 10 000 threads = Plusieurs gigaoctets de RAM gaspillés rien que pour les piles d'exécution, et saturation totale du CPU par les changements de contexte.
+
+### La Révolution Moderne : I/O Non-Bloquant & Multiplexage (`epoll`)
+Sur Linux moderne, les serveurs ultra-performants (Nginx, Node.js via `libuv`, Redis, Envoy) utilisent le multiplexage d'entrées/sorties via l'appel système **`epoll`** :
+
+```txt
+[ 1 Seul Thread Événementiel (Event Loop) ]
+                    │
+                    ▼ epoll_wait()
+[ Noyau Linux surveillant 100 000 Sockets ]
+                    │
+                    ├── Socket #42 a reçu des données !
+                    └── Socket #819 est prêt à émettre !
+```
+
+Au lieu d'attendre activement sur chaque socket, le processus demande au noyau Linux : *« Voici la liste de mes 50 000 sockets. Réveille-moi dès que l'un d'eux a des données prêtes à être lues. »* 
+
+Le thread applicatif ne dort jamais et traite les paquets dès qu'ils arrivent, permettant à un seul cœur CPU de soutenir des dizaines de milliers de connexions simultanées avec une consommation mémoire minime.
+
+---
+
+## 5. Signaux Linux et Graceful Shutdown en Production
+
+Dans un environnement moderne (Docker, Kubernetes), un serveur ne tourne pas indéfiniment. Lors d'un déploiement ou d'un auto-scaling :
+1. L'orchestrateur envoie un signal **`SIGTERM` (Signal 15)** : *« Tu as 30 secondes pour terminer proprement tes requêtes en cours et t'éteindre. »*
+2. Si le processus ne s'est pas arrêté au bout du délai imparti, l'OS envoie un **`SIGKILL` (Signal 9)** : le processus est immédiatement annihilé sans préavis, coupant les transactions SQL en plein vol.
+
+Voici l'implémentation de production d'un **Graceful Shutdown** complet en TypeScript :
+
+```typescript
+import * as http from 'node:http';
+
+export function setupGracefulShutdown(
+  server: http.Server,
+  databasePool: { end: () => Promise<void> }
+): void {
+  let isShuttingDown = false;
+
+  const handleShutdown = (signal: string) => {
+    if (isShuttingDown) return;
+    isShuttingDown = true;
+
+    // 1. Refuser les nouvelles connexions HTTP entrantes
+    server.close(async (err) => {
+      try {
+        // 2. Fermer proprement le pool de connexions à la base de données
+        await databasePool.end();
+        process.exit(err ? 1 : 0);
+      } catch {
+        process.exit(1);
+      }
+    });
+
+    // 3. Timeout de sécurité : forcer la fermeture si des requêtes traînent trop
+    const forceExitTimeout = setTimeout(() => {
+      process.exit(1);
+    }, 15_000);
+
+    // Empêcher ce timer de maintenir le processus en vie si tout s'est fermé avant
+    forceExitTimeout.unref();
+  };
+
+  // Écouter les signaux d'interruption et de terminaison Linux
+  process.on('SIGTERM', () => handleShutdown('SIGTERM'));
+  process.on('SIGINT', () => handleShutdown('SIGINT'));
+}
+```
+
+Comprendre les processus, la mémoire virtuelle et les mécanismes d'I/O du noyau Linux transforme votre compréhension du code applicatif, vous permettant de dimensionner vos conteneurs et de bâtir des services indestructibles en production.

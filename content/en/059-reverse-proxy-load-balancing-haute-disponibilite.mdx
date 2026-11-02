@@ -1,0 +1,172 @@
+---
+title: "Reverse Proxy and L4/L7 Load Balancing: High Availability Guide"
+description: "Scale your systems: Reverse Proxy vs Forward Proxy, L4 vs L7 load balancing, distribution algorithms, health checks, and production Nginx setup."
+tag: "DevOps"
+publishedAt: "2026-10-30"
+published: true
+time: 13
+---
+
+# Reverse Proxy and L4/L7 Load Balancing: High Availability Guide
+
+Your web application is growing fast. To absorb rising traffic volume, you provision two additional backend servers. But an immediate engineering dilemma presents itself:
+
+How do you evenly distribute incoming client requests across all three servers? What happens when server number 2 suffers an unexpected hardware crash in the middle of the night? Will users encounter a broken 502 Bad Gateway page, or will active traffic automatically and transparently reroute to surviving instances?
+
+This is the foundational mission of the **Reverse Proxy** and **Load Balancer**. Without them, no modern web application can achieve true high availability or horizontal scalability.
+
+---
+
+<Youtube id="dBmxNsS3BGE" />
+
+---
+
+## 1. Forward Proxy vs. Reverse Proxy: Clearing the Confusion
+
+Although both systems intercept and relay network traffic, their objectives and orientations are polar opposites:
+
+```txt
+[ CLIENT ] ──> [ FORWARD PROXY ] ──> [ PUBLIC INTERNET ] ──> [ REMOTE SERVERS ]
+(Protects the client: anonymity, enterprise content filtering, egress caching)
+
+[ PUBLIC INTERNET ] ──> [ REVERSE PROXY ] ──> [ INTERNAL APPLICATION SERVERS ]
+(Protects the server: load balancing, SSL termination, ingress caching, WAF)
+```
+
+- **Forward Proxy:** Sits directly in front of client devices. It conceals client IP addresses, enforces corporate egress firewall rules (e.g., blocking unauthorized websites), and caches shared web downloads.
+- **Reverse Proxy:** Sits directly in front of backend server instances. From an external user's perspective, the reverse proxy *is* the application. It obscures internal server topology, terminates HTTPS encryption, and distributes workloads across the cluster.
+
+---
+
+## 2. Layer 4 (L4) vs. Layer 7 (L7) Load Balancing
+
+Infrastructure engineers categorize load balancers based on which layer of the network protocol stack makes routing decisions:
+
+```txt
+┌────────────────────────────────────────────────────────┐
+│                   LAYER 4 LOAD BALANCER                │
+│  Makes decisions at Transport Layer (IP and TCP Port)  │
+│  - Ultra-high throughput (millions of packets/sec)     │
+│  - Never inspects HTTP payload contents                │
+│  - Examples: AWS Network Load Balancer (NLB), IPVS     │
+└────────────────────────────────────────────────────────┘
+
+┌────────────────────────────────────────────────────────┐
+│                   LAYER 7 LOAD BALANCER                │
+│  Makes decisions at Application Layer (HTTP / HTTPS)   │
+│  - Complete SSL termination and offloading             │
+│  - URL path routing (/api vs /static)                  │
+│  - Header, Cookie, and HTTP Verb routing               │
+│  - Examples: Nginx, HAProxy, Envoy, Traefik, AWS ALB   │
+└────────────────────────────────────────────────────────┘
+```
+
+> [!TIP]
+> High-throughput enterprise architectures frequently combine both layers: an ultra-fast Layer 4 load balancer handles initial packet distribution across a cluster of Layer 7 reverse proxies (like Envoy or Nginx), which evaluate application routing policies.
+
+---
+
+## 3. Core Load Balancing Distribution Algorithms
+
+How does a load balancer select which specific backend instance receives the next incoming connection?
+
+### 1. Round Robin
+Requests cycle sequentially across servers: Server 1, then Server 2, then Server 3, then back to Server 1.
+- *Best for:* Homogeneous server hardware with lightweight, uniform requests.
+
+### 2. Weighted Round Robin
+If your infrastructure contains one beefy server with 32 GB RAM and two smaller 8 GB nodes, you assign relative weights: the high-spec instance processes 4 out of every 6 incoming requests.
+
+### 3. Least Connections
+The load balancer routes new traffic to whichever instance currently handles the lowest number of active concurrent sockets.
+- *Best for:* Variable transaction workloads (large file streaming, complex database queries, persistent WebSockets).
+
+### 4. IP Hash & Sticky Sessions (Session Affinity)
+A hash of the client's source IP address locks the user to the identical backend server.
+- *Major Hazard:* If an instance crashes or restarts, all sticky users tied to that node lose active state unless sessions are stored in an external distributed cache (Redis).
+
+### 5. Consistent Hashing
+Indispensable for distributed caching tiers: adding or removing an instance only remaps $1/N$ of keys rather than invalidating the entire cache cluster.
+
+---
+
+## 4. Health Checks and Failover Strategies
+
+A load balancer is only as reliable as its ability to immediately sever traffic to unhealthy nodes.
+
+```txt
+                 [ Layer 7 Load Balancer ]
+                             │
+         ┌───────────────────┴───────────────────┐
+         ▼ (HTTP 200 OK)                         ▼ (Timeout / 500 Error)
+   [ Server A: HEALTHY ]                  [ Server B: EJECTED ❌ ]
+```
+
+### Two Complementary Health Check Approaches:
+- **Active Health Checks:** Every 5 seconds, the load balancer dispatches a synthetic `GET /healthz` probe to each upstream server. If an instance fails three consecutive probes, it is excised from the active pool.
+- **Passive Health Checks:** The load balancer observes live production traffic. If an actual customer request experiences a TCP reset or HTTP 502/503 error, it instantly resends the request to an alternate healthy node (*proxy_next_upstream*) without customer impact.
+
+---
+
+## 5. Production Nginx Reverse Proxy Configuration
+
+Production-grade Nginx configuration incorporating SSL offloading, rate limiting, connection pooling, and fault-tolerant upstreams:
+
+```nginx
+# Upstream cluster definition
+upstream backend_cluster {
+    # Least Connections algorithm
+    least_conn;
+
+    server 10.0.1.11:3000 max_fails=3 fail_timeout=10s;
+    server 10.0.1.12:3000 max_fails=3 fail_timeout=10s;
+    server 10.0.1.13:3000 backup; # Standby failover node
+
+    # Keep persistent TCP sockets warm to upstream backends
+    keepalive 64;
+}
+
+# Define Rate Limiting zone (10 requests per second per client IP)
+limit_req_zone $binary_remote_addr zone=api_limit:10m rate=10r/s;
+
+server {
+    listen 443 ssl http2;
+    server_name api.mydomain.com;
+
+    # SSL certificates and hardened modern ciphers
+    ssl_certificate /etc/letsencrypt/live/api.mydomain.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/api.mydomain.com/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+
+    # On-the-fly HTTP response compression
+    gzip on;
+    gzip_types text/plain application/json application/javascript text/css;
+    gzip_min_length 1024;
+
+    location / {
+        # Enforce rate limiting with burst tolerance
+        limit_req zone=api_limit burst=20 nodelay;
+
+        proxy_pass http://backend_cluster;
+        proxy_http_version 1.1;
+
+        # Forward real client identity headers
+        proxy_set_header Connection "";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # Strict timeouts to prevent worker starvation
+        proxy_connect_timeout 5s;
+        proxy_read_timeout 30s;
+        proxy_send_timeout 10s;
+
+        # Resend failed requests automatically to another healthy upstream node
+        proxy_next_upstream error timeout http_502 http_503;
+    }
+}
+```
+
+Mastering reverse proxy patterns, L4/L7 architectures, and load balancing algorithms eliminates Single Points of Failure (**SPOF**) and equips engineers to construct resilient systems ready for massive scale.

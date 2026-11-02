@@ -1,0 +1,172 @@
+---
+title: "Sécurité Réseau et TLS 1.3 : Cryptographie et Protection des APIs"
+description: "Comprenez la sécurité réseau de bout en bout : cryptographie hybride, handshake TLS 1.3, certificats X.509, mTLS, HSTS et parades aux attaques MITM."
+tag: "Security"
+publishedAt: "2026-10-28"
+published: true
+time: 13
+---
+
+# Sécurité Réseau et TLS 1.3 : Cryptographie et Protection des APIs
+
+Connectez votre ordinateur portable au Wi-Fi public d'une gare ou d'un aéroport. Lancez un outil comme Wireshark. Si les applications de votre machine communiquaient en clair via de simples requêtes HTTP, n'importe quel individu sur le même réseau local pourrait intercepter vos tokens d'authentification, vos mots de passe et vos données privées en quelques clics.
+
+Aujourd'hui, plus de 95 % du trafic web est chiffré. Pourtant, pour de nombreux développeurs, **HTTPS et TLS** restent de vagues concepts abstraits résumés par un certificat Let's Encrypt renouvelé automatiquement par un bot.
+
+Lorsque vous devez configurer une authentification mutuelle (**mTLS**) entre microservices, durcir vos en-têtes contre les attaques de dégradation (*SSL Strip*) ou comprendre pourquoi un client refuse de valider une chaîne de certification X.509, la maîtrise des **fondamentaux de la sécurité réseau** devient indispensable.
+
+---
+
+<Youtube id="WvSVSbGo0wI" />
+
+---
+
+## 1. Cryptographie Hybride : Le Cœur de TLS
+
+Pourquoi n'utilise-t-on pas simplement la cryptographie asymétrique (clés publique/privée) pour chiffrer l'ensemble de nos échanges HTTP ?
+
+Pour une raison de **coût CPU** :
+- Le chiffrement asymétrique (RSA, courbes elliptiques ECDHE) nécessite des calculs mathématiques lourds sur de très grands nombres.
+- Le chiffrement symétrique (AES-256-GCM, ChaCha20-Poly1305) est ultra-rapide et accéléré matériellement par les instructions processeur AES-NI.
+
+TLS utilise donc une **architecture hybride** :
+
+```txt
+┌────────────────────────────────────────────────────────┐
+│               1. HANDSHAKE (Asymétrique)               │
+│ Authentification du serveur + Négociation d'une clé    │
+│ de session éphémère partagée (ECDHE).                  │
+└──────────────────────────┬─────────────────────────────┘
+                           │
+                           ▼
+┌────────────────────────────────────────────────────────┐
+│            2. TRANSFERT DE DONNÉES (Symétrique)        │
+│ Chiffrement des requêtes et réponses HTTP avec la      │
+│ clé de session partagée (AES-GCM / 10 Gbps+).          │
+└────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 2. Le Handshake TLS 1.3 : Plus Rapide, Plus Sûr
+
+Pendant des années, le protocole **TLS 1.2** imposait deux allers-retours complets (2 RTT) avant de pouvoir envoyer la moindre donnée applicative. 
+
+**TLS 1.3** a révolutionné la sécurité web en épurant les algorithmes obsolètes et en ramenant le handshake à **1 seul RTT** :
+
+```txt
+Client                                            Serveur
+  │                                                  │
+  │ ─── Client Hello ──────────────────────────────> │
+  │     (Cipher Suites + Partage de clé ECDHE)       │
+  │                                                  │
+  │ <── Server Hello + Certificat + Clé ECDHE ────── │
+  │     (Génération immédiate de la clé symétrique)  │
+  │                                                  │
+  ▼ [ TUNNEL CHIFFRÉ ÉTABLI - 1 RTT SEULEMENT ]     │
+  │                                                  │
+  │ ─── Données HTTP Chiffrées (Application Data) ─> │
+```
+
+### Ce que TLS 1.3 a supprimé pour votre sécurité :
+- Élimination des algorithmes de hachage vulnérables (MD5, SHA-1).
+- Élimination du chiffrement par flux RC4 et du mode CBC (vulnérable aux attaques POODLE et BEAST).
+- Suppression de l'échange de clés RSA statique au profit exclusif de **Diffie-Hellman Éphémère (PFS - Perfect Forward Secrecy)** : même si un attaquant vole la clé privée du serveur dans 5 ans, il ne pourra jamais déchiffrer les échanges passés enregistrés sur le réseau.
+
+---
+
+## 3. Certificats X.509 et Chaîne de Confiance
+
+Un certificat SSL/TLS est une carte d'identité numérique liant une clé publique à un nom de domaine. Mais comment votre navigateur sait-il qu'il peut faire confiance à ce certificat ?
+
+Grâce à la **Chaîne de Confiance (Chain of Trust)** :
+
+```txt
+[ Root CA (Autorité Racine) ]
+(Pré-installée dans votre OS / Navigateur : DigiCert, Let's Encrypt ISRG Root X1)
+       │ (Signature cryptographique)
+       ▼
+[ Intermediate CA (Autorité Intermédiaire) ]
+(Ex: Let's Encrypt R3)
+       │ (Signature cryptographique)
+       ▼
+[ Leaf Certificate (Certificat de votre serveur) ]
+(api.mondomaine.com)
+```
+
+### Extensions TLS capitales :
+- **SNI (Server Name Indication) :** Envoie le nom de domaine demandé en clair au début du handshake, permettant à un même serveur ou proxy Nginx d'héberger des centaines de sites HTTPS avec des certificats différents sur une unique adresse IP.
+- **ALPN (Application-Layer Protocol Negotiation) :** Négocie le protocole supérieur (HTTP/1.1, HTTP/2 ou HTTP/3) dès le handshake TLS sans échange réseau supplémentaire.
+
+---
+
+## 4. Les En-têtes de Sécurité HTTP Indispensables
+
+Chiffrer le réseau ne suffit pas si le navigateur peut être manipulé pour rétrograder la connexion.
+
+### A. HSTS (HTTP Strict Transport Security)
+Empêche les attaques *SSL Strip* où un attaquant force la victime à naviguer en HTTP non sécurisé :
+```http
+Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
+```
+Cet en-tête ordonne au navigateur de ne **jamais** émettre la moindre requête HTTP non chiffrée vers ce domaine pendant 2 ans.
+
+### B. Démystifier CORS : Pourquoi CORS n'est PAS une sécurité serveur
+> [!CAUTION]
+> Une erreur classique des développeurs est de croire que CORS protège leur API contre les attaques. **C'est faux.** CORS est une politique mise en œuvre par le *navigateur* pour protéger les cookies et sessions de l'utilisateur contre des scripts tiers malveillants. Un script Python, un bot curl ou un attaquant ignorent totalement les en-têtes CORS.
+
+---
+
+## 5. mTLS (Mutual TLS) : Authentifier les Deux Extrémités
+
+En HTTPS classique, seul le serveur prouve son identité au client. Le client reste anonyme jusqu'à ce qu'il envoie un mot de passe ou un token JWT.
+
+Dans une architecture Zero-Trust entre microservices, on utilise le **mTLS (Mutual TLS)** : le serveur et le client s'échangent mutuellement leurs certificats cryptographiques.
+
+```txt
+[ Service Commande ] ◄── Handshake mTLS Bilatéral ──► [ Service Paiement ]
+(Vérifie le Certificat Paiement)             (Vérifie le Certificat Commande)
+```
+
+Voici comment implémenter un agent client HTTPS en TypeScript avec mTLS strict :
+
+```typescript
+import * as https from 'node:https';
+import * as fs from 'node:fs';
+
+export interface MtlsConfig {
+  readonly caCertPath: string;
+  readonly clientCertPath: string;
+  readonly clientKeyPath: string;
+}
+
+export function createSecureMtlsAgent(config: MtlsConfig): https.Agent {
+  return new https.Agent({
+    // Certificat de l'autorité racine interne pour valider le serveur
+    ca: fs.readFileSync(config.caCertPath),
+    // Certificat d'identité propre à ce client
+    cert: fs.readFileSync(config.clientCertPath),
+    // Clé privée du client
+    key: fs.readFileSync(config.clientKeyPath),
+    // Rejet strict de tout certificat non valide ou auto-signé non reconnu
+    rejectUnauthorized: true,
+    // Forcer au minimum TLS 1.3
+    minVersion: 'TLSv1.3',
+    // Maintien des sockets ouverts pour éviter le surcoût du handshake
+    keepAlive: true,
+    keepAliveMsecs: 30_000,
+  });
+}
+```
+
+---
+
+## 6. Attaques Réseau et Mitigations au Niveau OS
+
+| Attaque | Fonctionnement | Mitigation Système / Réseau |
+| :--- | :--- | :--- |
+| **SYN Flood** | L'attaquant envoie des milliers de paquets `SYN` sans jamais répondre aux `SYN-ACK`, saturant la table de backlog du noyau. | Activer les **SYN Cookies** (`sysctl -w net.ipv4.tcp_syncookies=1`). L'état est encodé dans le numéro de séquence sans allouer de mémoire. |
+| **Slowloris** | L'attaquant ouvre des centaines de connexions HTTP et envoie les en-têtes octet par octet très lentement, bloquant les workers du serveur. | Utiliser un reverse proxy (Nginx, Envoy) avec un `client_header_timeout` court (ex: 10s) et une architecture non-bloquante (`epoll`). |
+| **Man-in-the-Middle (MITM)** | Interception du trafic entre le client et la passerelle réseau. | Forcer TLS 1.3, activer HSTS Preload et Certificate Transparency logs. |
+
+Comprendre la cryptographie sous-jacente, le handshake TLS et la mécanique des certificats permet de blinder vos communications API et de construire des architectures sécurisées par conception.
