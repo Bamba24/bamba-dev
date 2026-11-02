@@ -262,13 +262,8 @@ Pour la production, créez un **Environment** nommé `production` :
 
 ---
 
-## ❓ FAQ Schema : Questions Fréquentes sur GitHub Actions
+## 📺 Vidéo Recommandée : GitHub Actions de A à Z
 
-### Quelle est la différence entre GitHub-hosted et Self-hosted runners ?
-Les **GitHub-hosted runners** sont des machines éphémères gérées par GitHub (aucun serveur à maintenir, image propre à chaque run). Les **Self-hosted runners** tournent sur vos propres serveurs ou VM privées : ils sont gratuits en temps de calcul, permettent d'utiliser du matériel puissant ou d'accéder à un réseau d'entreprise fermé.
+Pour approfondir la création de workflows pas à pas et voir un pipeline de conteneurisation Docker complet en action, voici le cours de référence de Nana Janashia (*TechWorld with Nana*) :
 
-### Comment réutiliser du code entre plusieurs workflows ?
-Utilisez les **Composite Actions** pour factoriser une suite de commandes réutilisables, ou les **Reusable Workflows** (`workflow_call`) pour appeler un workflow complet depuis un autre dépôt ou fichier.
-
-### Comment éviter qu'une PR malveillante n'accède à mes secrets ?
-Sur les dépôts open-source, les déclencheurs `pull_request` provenant de forks n'ont **aucun accès aux secrets** du dépôt d'origine par mesure de sécurité. L'événement `pull_request_target` donne accès aux secrets mais doit être manipulé avec d'extrêmes précautions pour éviter les injections de code.
+<Youtube id="R8_veQiYBjI" />

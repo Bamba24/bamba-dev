@@ -240,13 +240,8 @@ GitLab provides centralized secret management under **Settings > CI/CD > Variabl
 
 ---
 
-## ❓ FAQ Schema: Frequently Asked Questions
+## 📺 Recommended Video: Complete GitLab CI/CD Tutorial
 
-### What is the difference between Shared Runners and Specific Runners?
-A **Shared Runner** is available across all projects in a GitLab organization, managed centrally with shared queue priority. A **Specific Runner** is provisioned on dedicated hardware (such as bare-metal servers or private VPC clusters) with tailored resources (high RAM, GPUs, local network access) allocated to a specific repository.
+To visually consolidate these concepts and watch an end-to-end pipeline deploy step by step in real time, watch this definitive crash course by Nana Janashia (*TechWorld with Nana*):
 
-### Why does a pipeline job fail with `exit code 137`?
-Exit code `137` signals a `SIGKILL` dispatched by the operating system kernel when the runner triggers the **OOM Killer (Out Of Memory)**. Your application compilation or Docker container exceeded the runner host's allocated memory. Increase RAM allocation or configure swap space.
-
-### How can a job execute immediately without waiting for other stage jobs?
-Use the **`needs`** keyword to create a Directed Acyclic Graph (DAG) pipeline. A job declared with `needs: [job_name]` begins as soon as that specific upstream job finishes, bypassing stage boundary synchronization.
+<Youtube id="qP8kir2GUgo" />

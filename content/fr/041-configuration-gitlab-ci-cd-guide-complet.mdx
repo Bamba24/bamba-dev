@@ -240,13 +240,8 @@ GitLab intègre un coffre-fort dans **Settings > CI/CD > Variables** :
 
 ---
 
-## ❓ FAQ Schema : Questions Fréquentes sur GitLab CI/CD
+## 📺 Vidéo Recommandée : GitLab CI/CD de A à Z
 
-### Quelle est la différence entre un Shared Runner et un Specific Runner ?
-Un **Shared Runner** est mutualisé par l'instance GitLab pour l'ensemble des projets de l'entreprise (souvent avec une file d'attente partagée). Un **Specific Runner** est dédié exclusivement à un projet sensible, installé sur une machine bare-metal ou privée avec des capacités matérielles supérieures (ex: GPU pour l'IA, accès au réseau local).
+Pour consolider visuellement ces concepts et voir un pipeline complet se déployer pas à pas en direct, voici le cours complet de référence par Nana Janashia (*TechWorld with Nana*) :
 
-### Pourquoi mon pipeline GitLab affiche-t-il `Job failed: exit code 137` ?
-Le code de sortie `137` correspond au signal UNIX `SIGKILL` envoyé par le système d'exploitation lorsqu'un processus est tué par le **OOM Killer (*Out Of Memory*)**. Votre conteneur Docker ou votre compilation TypeScript a dépassé la limite de RAM allouée au runner. Augmentez la mémoire disponible ou activez un swap.
-
-### Comment exécuter des jobs indépendamment sans attendre la fin du stage ?
-Utilisez le mot-clé **`needs`** pour créer un pipeline en graphe acyclique dirigé (DAG). Un job peut ainsi démarrer dès qu'un job spécifique est terminé, sans attendre la fin des autres jobs de son stage.
+<Youtube id="qP8kir2GUgo" />

@@ -135,16 +135,8 @@ Pipeline quality must be measured empirically. The four **DORA metrics** (*DevOp
 
 ---
 
-## ❓ FAQ Schema: Frequently Asked Questions
+## 📺 Recommended Video: CI/CD Pipeline Explained
 
-### What is Trunk-Based Development compared to GitFlow?
-In **GitFlow**, teams maintain long-lived branches (`develop`, `release`, `feature`), resulting in painful merge conflicts and deferred integration bugs. In **Trunk-Based Development**, engineers push small, incremental changes directly to the main trunk (`main`) multiple times per day, validated by rigorous automated CI pipelines.
+To master the complete continuous integration and delivery lifecycle in under five minutes, watch this concise and visual explainer by Nana Janashia (*TechWorld with Nana*):
 
-### How do you perform zero-downtime releases during database schema changes?
-Adopt the **Expand and Contract (Parallel Change)** pattern:
-1. *Expand*: Add the new table or nullable column without removing the old schema.
-2. *Migrate*: Deploy application code that dual-writes to both and reads from the new schema.
-3. *Contract*: Safely delete the legacy schema during a subsequent release.
-
-### What role do Feature Flags play in CI/CD?
-**Feature Flags** decouple technical code deployment from business feature release. Developers can ship incomplete work to production behind disabled toggles, completely eliminating long-lived feature branches while retaining the ability to toggle features instantly without redeploying.
+<Youtube id="ddDJxFnv-qs" />

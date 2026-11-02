@@ -135,16 +135,8 @@ L'efficacité d'une chaîne CI/CD ne se devine pas, elle se mesure scientifiquem
 
 ---
 
-## ❓ FAQ Schema : Questions Fréquentes sur l'Architecture CI/CD
+## 📺 Vidéo Recommandée : Le Pipeline CI/CD Expliqué
 
-### Qu'est-ce que le Trunk-Based Development par rapport à GitFlow ?
-Dans **GitFlow**, les équipes maintiennent des branches à longue durée de vie (`develop`, `release`, `feature`), créant de gigantesques conflits d'intégration. Dans le **Trunk-Based Development**, les ingénieurs travaillent sur de très petites branches de courte durée (quelques heures) et fusionnent directement sur la branche principale (`main`) plusieurs fois par jour sous le contrôle strict de la CI.
+Pour comprendre en 5 minutes chrono le cycle complet d'un pipeline d'intégration et de livraison continues, regardez cette explication limpide de Nana Janashia (*TechWorld with Nana*) :
 
-### Comment déployer du code sans impacter les utilisateurs si la base de données change ?
-Utilisez le pattern **Expand and Contract (Parallel Change)** :
-1. *Expand* : Ajoutez la nouvelle colonne ou table sans supprimer l'ancienne.
-2. *Migrate* : Déployez le code qui écrit dans les deux colonnes et lit dans la nouvelle.
-3. *Contract* : Supprimez l'ancienne colonne devenue obsolète lors d'un déploiement ultérieur.
-
-### Quel est l'intérêt des Feature Flags (Feature Toggles) en CI/CD ?
-Les **Feature Flags** découplent le déploiement technique de l'activation fonctionnelle. Vous pouvez déployer du code inachevé en production en masquant la fonctionnalité derrière un drapeau désactivé, éliminant ainsi les branches de fonctionnalités qui durent des semaines.
+<Youtube id="ddDJxFnv-qs" />

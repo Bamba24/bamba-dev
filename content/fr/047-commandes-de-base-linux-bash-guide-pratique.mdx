@@ -1,0 +1,181 @@
+---
+title: "Guide Bash & Linux : Les Commandes Essentielles en Prod"
+description: "Maîtrisez les commandes Linux et Bash indispensables : système de fichiers, permissions chmod/chown, pipes, grep, gestion des processus et astuces de prod."
+tag: "DevOps"
+publishedAt: "2026-11-02"
+published: true
+time: 21
+---
+
+# Guide Bash & Linux : Les Commandes Essentielles en Prod
+
+« *Un conteneur Docker plante en boucle en production, votre interface web graphique est inaccessible, et vous vous retrouvez seul face à un prompt noir clignotant.* »
+
+C'est le baptême du feu de tout ingénieur logiciel. Lorsque les abstractions confortables de votre IDE disparaissent, votre capacité à diagnostiquer un crash, inspecter des logs en direct et réparer des fichiers corrompus dépend à 100% de votre maîtrise de **Linux** et de son interpréteur de commandes emblématique : **Bash**.
+
+Contrairement aux idées reçues, Linux n'est pas réservé aux administrateurs système barbus. Plus de 95% des serveurs web, clusters Kubernetes et conteneurs de la planète tournent sous Linux.
+
+Dans ce guide pratique, nous allons clarifier la distinction entre noyau Linux et shell Bash, décortiquer la hiérarchie du système de fichiers, et maîtriser les commandes vitales pour manipuler des données, gérer des processus et automatiser vos flux.
+
+---
+
+```txt
+┌────────────────────────────────────────────────────────────────────────┐
+│               ANATOMIE D'UNE LIGNE DE COMMANDE SOUS LINUX              │
+├────────────────────────────────────────────────────────────────────────┤
+│  UTILISATEUR ──► TERMINAL (Interface graphique / Émulateur)            │
+│                       │                                                │
+│                       ▼                                                │
+│  SHELL (Bash, Zsh) : Interprète les commandes saisies                  │
+│                       │                                                │
+│                       ▼ (Appels système POSIX)                         │
+│  NOYAU LINUX (Kernel) : Gère le CPU, la RAM, les disques et le réseau │
+│                       │                                                │
+│                       ▼                                                │
+│  MATÉRIEL PHYSIQUE (Serveur bare-metal, VPS, Cloud VM)                 │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 1. Démystification : Linux, Terminal ou Bash ?
+
+Avant d'exécuter la moindre commande, il est fondamental de comprendre qui fait quoi :
+
+1. **Linux (Le Noyau / Kernel)** : C'est le cœur du système d'exploitation créé par Linus Torvalds. Il orchestre directement la mémoire vive, le processeur, les pilotes matériels et le système de fichiers.
+2. **Le Terminal (L'Émulateur)** : La fenêtre graphique dans laquelle vous tapez du texte (ex: Terminal macOS, Windows Terminal, iTerm2, Alacritty).
+3. **Bash (*Bourne Again SHell*)** : Le programme interpréteur de commandes par défaut sur la majorité des distributions Linux (Ubuntu, Debian, CentOS). Il lit vos lignes de texte, exécute les utilitaires système et permet d'écrire des scripts d'automatisation.
+
+### L'Analogie du Monde Réel
+> **L'Analogie de la Salle de Contrôle Industrielle :** Le **Noyau Linux** est la machinerie lourde de l'usine (moteurs, pompes, turbines). Le **Terminal** est l'écran vidéo et le pupitre physique où l'opérateur s'assoit. **Bash** est la langue technique standardisée parlée par l'opérateur dans son micro pour transmettre des ordres précis aux automates de l'usine.
+
+---
+
+## 2. La Hiérarchie du Système de Fichiers Linux
+
+Sous Windows, les fichiers sont segmentés par disques (`C:\`, `D:\`). Sous Linux, tout part d'une unique racine : **`/`** (*root*).
+
+```txt
+/ (Racine absolue)
+├── bin/      ──► Fichiers exécutables essentiels du système (ls, cat, cp)
+├── etc/      ──► Fichiers de configuration système et des services (nginx, ssh)
+├── home/     ──► Répertoires personnels des utilisateurs (/home/alice)
+├── root/     ──► Dossier personnel de l'administrateur suprême (root)
+├── var/      ──► Données dynamiques : logs (/var/log), caches et bases de données
+├── opt/      ──► Logiciels tiers et applications déployées (/opt/mon-app)
+└── tmp/      ──► Fichiers temporaires purgés au redémarrage
+```
+
+---
+
+## 3. Navigation et Manipulation de Fichiers
+
+### 3.1 Se Déplacer et Inspecter
+- `pwd` (*Print Working Directory*) : Affiche le chemin absolu du dossier actuel.
+- `ls -la` : Liste tous les fichiers, y compris les fichiers cachés (commençant par `.`), avec leurs permissions, tailles et dates de modification.
+- `cd /var/log` : Change de répertoire vers le chemin spécifié.
+- `cd ..` : Remonte d'un niveau dans l'arborescence.
+- `cd ~` ou simplement `cd` : Revient instantanément dans votre dossier personnel (*home*).
+
+### 3.2 Créer, Déplacer et Supprimer
+- `mkdir -p /opt/app/logs` : Crée un dossier et tous ses parents intermédiaires s'ils n'existent pas.
+- `touch .env.production` : Crée un fichier vide ou met à jour sa date d'accès.
+- `cp -r src/ dist/` : Copie récursivement un répertoire et son contenu.
+- `mv config.json config.old.json` : Renomme ou déplace un fichier.
+- `rm -rf dossier_obsolete/` : Supprime récursivement et sans confirmation (**à manipuler avec précaution extrême**).
+
+---
+
+## 4. Lecture et Analyse de Logs en Temps Réel
+
+En production, vous ne devez jamais ouvrir un fichier de log de plusieurs gigaoctets avec un éditeur lourd.
+
+```bash
+# Afficher les 50 dernières lignes d'un fichier de log
+tail -n 50 /var/log/nginx/access.log
+
+# Suivre en direct les nouvelles entrées (streaming temps réel)
+tail -f /var/log/syslog
+
+# Rechercher toutes les erreurs 500 dans les logs Nginx
+grep "HTTP/1.1 500" /var/log/nginx/access.log
+
+# Compter le nombre d'occurrences d'une erreur
+grep -c "Database connection timeout" app.log
+```
+
+---
+
+## 5. La Puissance des Tuyaux (*Pipes*) et Redirections
+
+Le principe philosophique d'Unix est simple : **concevoir de petits programmes spécialisés qui font une seule chose parfaitement, et les combiner à l'infini.**
+
+- Le symbole tube **`|`** prend la sortie standard (*stdout*) de la commande de gauche et l'injecte comme entrée (*stdin*) de la commande de droite.
+- Le chevron **`>`** redirige la sortie vers un fichier en **écrasant** son contenu.
+- Le double chevron **`>>`** ajoute la sortie à la suite du fichier (**sans écraser**).
+- **`2>&1`** fusionne la sortie d'erreur standard (*stderr*) avec la sortie standard.
+
+```bash
+# Exemple : Trouver les 5 adresses IP qui génèrent le plus de requêtes dans les logs Nginx
+cat /var/log/nginx/access.log | awk '{print $1}' | sort | uniq -c | sort -nr | head -n 5
+```
+
+---
+
+## 6. Permissions et Propriété : `chmod` et `chown`
+
+La sécurité sous Linux repose sur un modèle d'accès strict divisé en trois catégories : **User** (propriétaire), **Group** (groupe associé), et **Others** (le reste du monde).
+
+```txt
+- rwx r-x r--   1 deploy www-data 4096 Nov 2 12:00 server.js
+  ─── ─── ───
+   │   │   └─ Permissions des autres (Lecture seule = r--)
+   │   └───── Permissions du groupe (Lecture et Exécution = r-x)
+   └───────── Permissions du propriétaire (Lecture, Écriture, Exécution = rwx)
+```
+
+### Valeurs Numériques (Notation Octale)
+- **r (Read)** = 4
+- **w (Write)** = 2
+- **x (Execute)** = 1
+
+```bash
+# Accorder lecture/écriture au propriétaire, lecture seule aux autres (644)
+chmod 644 .env
+
+# Rendre un script bash exécutable par son propriétaire (755)
+chmod 755 deploy.sh
+
+# Changer le propriétaire et le groupe d'un dossier applicatif
+sudo chown -R deploy:www-data /opt/mon-application
+```
+
+---
+
+## 7. Gestion des Processus et Surveillance Système
+
+### 7.1 Surveiller les Ressources
+- `top` ou `htop` : Tableau de bord interactif en direct de la charge CPU et RAM.
+- `ps aux | grep node` : Recherche tous les processus Node.js en cours d'exécution.
+- `df -h` : Affiche l'espace disque disponible sur chaque partition dans un format lisible (Go, Mo).
+- `free -m` : Affiche la mémoire RAM libre, utilisée et en cache.
+
+### 7.2 Terminer un Processus Bloqué
+```bash
+# Trouver le PID (Process ID) d'un processus écoutant sur le port 3000
+lsof -i :3000
+
+# Tuer proprement le processus (signal SIGTERM)
+kill 12345
+
+# Forcer l'arrêt immédiat si le processus ne répond plus (signal SIGKILL)
+kill -9 12345
+```
+
+---
+
+## 📺 Vidéo Recommandée : Formation Complète Linux & Ligne de Commande
+
+Pour pratiquer toutes les commandes Linux et Bash dans un terminal réel du début à la fin, voici le cours de référence de freeCodeCamp :
+
+<Youtube id="sWbUDq4S6Y8" />

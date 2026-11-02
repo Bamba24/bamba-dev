@@ -143,13 +143,8 @@ Le **VPC** est votre centre de données privé virtuel et hermétique au sein d'
 
 ---
 
-## ❓ FAQ Schema : Questions Fréquentes sur AWS
+## 📺 Vidéo Recommandée : Formation Complète AWS Cloud
 
-### Quelle est la différence entre AWS Fargate et EC2 pour faire tourner des conteneurs ?
-Avec **EC2**, vous gérez vous-même les serveurs virtuels hôtes (mises à jour de sécurité de l'OS, dimensionnement de la mémoire). Avec **AWS Fargate**, l'infrastructure est entièrement abstraite : vous spécifiez uniquement la quantité de CPU et de RAM dont votre conteneur a besoin, et AWS l'exécute sans aucun serveur à configurer.
+Pour explorer l'ensemble des services AWS (IAM, VPC, EC2, S3, RDS) et comprendre leur mise en œuvre concrète, voici la formation de référence de freeCodeCamp :
 
-### Comment éviter les mauvaises surprises de facturation sur AWS ?
-Activez immédiatement **AWS Budgets** pour recevoir des alertes par e-mail dès que vos dépenses prévisionnelles atteignent 80% de votre plafond. Mettez également en place des règles de cycle de vie sur S3 (*Lifecycle Policies*) pour archiver automatiquement les anciens fichiers vers Amazon Glacier.
-
-### Pourquoi utiliser une NAT Gateway plutôt qu'une adresse IP publique sur mes serveurs ?
-Une adresse IP publique expose directement votre serveur aux scanners de vulnérabilités et aux attaques par force brute venues d'Internet. La **NAT Gateway** permet à vos serveurs situés dans des sous-réseaux privés d'initier des connexions vers l'extérieur (ex: mises à jour de sécurité) tout en interdisant formellement à Internet d'initier une connexion entrante vers eux.
+<Youtube id="NhDYbskXRgc" />

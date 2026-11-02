@@ -143,13 +143,8 @@ An **Amazon VPC** represents your private, isolated virtual datacenter carved ou
 
 ---
 
-## ❓ FAQ Schema: Frequently Asked Questions
+## 📺 Recommended Video: Complete AWS Cloud Practitioner Course
 
-### What is the difference between AWS Fargate and EC2 for running containers?
-With **EC2**, you manage the underlying virtual machines yourself, including operating system patches and cluster scaling. With **AWS Fargate**, the server infrastructure is completely abstract: you specify the required CPU and memory footprint, and AWS provisions and runs the containers seamlessly.
+To visually explore every foundational AWS cloud service (IAM, VPC, EC2, S3, RDS) and see real-world architectural setups, watch this comprehensive course by freeCodeCamp:
 
-### How do I prevent unexpected billing surprises on AWS?
-Configure **AWS Budgets** to trigger proactive email alerts when actual or forecasted monthly spending reaches 80% of your threshold. Additionally, implement Amazon S3 Lifecycle Rules to transition older backups automatically to cold storage classes like Amazon Glacier.
-
-### Why should application servers use a NAT Gateway instead of public IP addresses?
-Assigning public IP addresses to backend instances exposes them directly to automated vulnerability port scans and brute force attacks from the internet. A **NAT Gateway** allows instances in private subnets to initiate outbound internet connections (for updates or third-party API calls) while completely forbidding unsolicited inbound connections.
+<Youtube id="NhDYbskXRgc" />

@@ -262,13 +262,8 @@ For production workloads, create a dedicated **Environment** named `production`:
 
 ---
 
-## ❓ FAQ Schema: Frequently Asked Questions
+## 📺 Recommended Video: Complete GitHub Actions Guide
 
-### What is the difference between GitHub-hosted and Self-hosted runners?
-**GitHub-hosted runners** are managed, ephemeral virtual machines created on demand (zero maintenance, fresh environment every run). **Self-hosted runners** run on your own virtual or bare-metal machines: they are free of minute quotas, allow custom hardware acceleration (such as GPUs), and can access private enterprise networks behind firewalls.
+To visually master building automated workflows and observe a full Docker container delivery pipeline deployed live, watch this masterclass by Nana Janashia (*TechWorld with Nana*):
 
-### How do I share reusable logic across multiple workflows?
-Use **Composite Actions** to bundle a series of sequential commands into a single action, or **Reusable Workflows** (`workflow_call`) to invoke an entire workflow file from another pipeline or repository.
-
-### How do I prevent untrusted pull requests from stealing secrets?
-On public open-source repositories, workflows triggered by `pull_request` from forks receive **read-only tokens and zero access to repository secrets**. The alternative `pull_request_target` trigger runs in the context of the base repository with secret access, but must be configured with extreme caution to prevent script injection.
+<Youtube id="R8_veQiYBjI" />

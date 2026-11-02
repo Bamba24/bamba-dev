@@ -1,0 +1,123 @@
+---
+title: "Services AWS : Cartographie Complète de l'Offre Cloud"
+description: "Retrouvez-vous dans le catalogue AWS : Compute, Storage, Database, Serverless, AI Bedrock, Messaging et matrice de décision pour choisir le bon service."
+tag: "Cloud"
+publishedAt: "2026-11-02"
+published: true
+time: 23
+---
+
+# Services AWS : Cartographie Complète de l'Offre Cloud
+
+« *EC2, S3, RDS, SQS, SNS, SES, ECS, EKS, Fargate, Bedrock... Comment s'y retrouver parmi plus de 200 services aux acronymes cryptiques ?* »
+
+C'est le vertige qui saisit tout ingénieur ouvrant la console de gestion d'Amazon Web Services pour la première fois. La richesse du catalogue AWS est sa plus grande force, mais aussi son plus grand piège : choisir le mauvais service pour un cas d'usage peut multiplier vos coûts par dix et complexifier inutilement votre architecture logicielle.
+
+AWS ne doit pas être vu comme un bloc monolithique, mais comme une **gigantesque boîte de briques Lego spécialisées** réparties par grands domaines fonctionnels.
+
+Dans ce guide de référence, nous établissons la cartographie complète de l'offre AWS, décodons le rôle précis de chaque service majeur et fournissons une matrice de décision claire pour choisir la bonne brique au bon moment.
+
+---
+
+```txt
+┌────────────────────────────────────────────────────────────────────────┐
+│                   CARTOGRAPHIE GÉNÉRALE DU CATALOGUE AWS               │
+├────────────────────────────────────────────────────────────────────────┤
+│ 1. CALCUL (COMPUTE)        : EC2, Lambda, ECS, EKS, Fargate            │
+│ 2. STOCKAGE & CDN          : S3, EBS, EFS, CloudFront                  │
+│ 3. BASES DE DONNÉES        : RDS, Aurora, DynamoDB, ElastiCache        │
+│ 4. RÉSEAU & ROUTAGE        : VPC, Route 53, ALB/NLB, API Gateway       │
+│ 5. INTÉGRATION & MESSAGES  : SQS, SNS, EventBridge, Step Functions    │
+│ 6. INTELLIGENCE IA / ML    : Amazon Bedrock, SageMaker                 │
+│ 7. SÉCURITÉ & OBSERVABILITÉ: IAM, KMS, CloudWatch, CloudTrail          │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 1. La Catégorie Calcul (Compute) : Où Exécuter Votre Code ?
+
+Le choix de l'environnement de calcul dépend du niveau d'abstraction et de contrôle que vous souhaitez déléguer à AWS :
+
+```txt
+┌───────────────┬───────────────────────────┬────────────────────────────┐
+│ Service AWS   │ Type d'Hébergement        │ Cas d'Usage Idéal          │
+├───────────────┼───────────────────────────┼────────────────────────────┤
+│ EC2           │ Machine Virtuelle brute   │ Contrôle total OS, legacy  │
+│ ECS           │ Conteneurs Docker         │ Microservices conteneurisés│
+│ EKS           │ Orchestration Kubernetes  │ Standards multi-cloud K8s  │
+│ Fargate       │ Conteneurs Serverless     │ Docker sans gérer de VM    │
+│ Lambda        │ Fonctions Serverless      │ Événements, API à la volée │
+└───────────────┴───────────────────────────┴────────────────────────────┘
+```
+
+- **Amazon EC2 (Elastic Compute Cloud)** : Des serveurs virtuels à la demande où vous choisissez l'OS, le CPU et la RAM.
+- **AWS Lambda** : Vous fournissez simplement votre fonction (Node.js, Python, Go) et AWS l'exécute uniquement lorsqu'une requête arrive. Aucune facture quand il n'y a pas de trafic.
+- **AWS Fargate** : La solution royale pour Docker : vous lancez vos conteneurs sans jamais avoir à mettre à jour ou surveiller les machines virtuelles hôtes.
+
+---
+
+## 2. La Catégorie Stockage & Diffusion (Storage & CDN)
+
+- **Amazon S3 (Simple Storage Service)** : Le stockage d'objets immuables le plus robuste au monde. Vous y déposez des images, vidéos, sauvegardes et assets web. Durabilité certifiée à 99.999999999% (11 9s).
+- **Amazon EBS (Elastic Block Store)** : Les disques SSD haute performance attachés directement à vos machines EC2 pour héberger le système d'exploitation et les fichiers temporaires.
+- **Amazon EFS (Elastic File System)** : Un disque réseau partagé (NFS) que des centaines de serveurs EC2 ou conteneurs ECS peuvent monter et lire simultanément.
+- **Amazon CloudFront** : Réseau de diffusion de contenu (CDN) mondial qui met en cache vos fichiers statiques dans des centaines de points de présence pour les délivrer à la vitesse de la lumière.
+
+---
+
+## 3. La Catégorie Bases de Données (Databases)
+
+AWS propose des moteurs de persistance optimisés pour chaque modèle de données :
+
+```txt
+┌───────────────┬───────────────────────────┬────────────────────────────┐
+│ Moteur AWS    │ Modèle                    │ Particularité              │
+├───────────────┼───────────────────────────┼────────────────────────────┤
+│ RDS           │ SQL Relationnel           │ Postgres / MySQL managés   │
+│ Aurora        │ SQL Cloud-Native          │ 5x plus rapide que MySQL   │
+│ DynamoDB      │ NoSQL Clé-Valeur          │ Latence sub-milliseconde   │
+│ ElastiCache   │ En-Mémoire (Redis/Memcached) Caching ultra-rapide     │
+└───────────────┴───────────────────────────┴────────────────────────────┘
+```
+
+- **Amazon RDS** : Automatise les sauvegardes quotidiennes, les correctifs de sécurité et le basculement haute disponibilité (*Multi-AZ*).
+- **Amazon DynamoDB** : Base de données NoSQL entièrement gérée, capable de supporter des millions de requêtes par seconde lors du Super Bowl sans fléchir.
+
+---
+
+## 4. Intégration, Messages et Découplage Applicatif
+
+Dans une architecture moderne en microservices, les services ne doivent jamais s'appeler directement de façon synchrone pour éviter les pannes en cascade.
+
+- **Amazon SQS (Simple Queue Service)** : File d'attente de messages asynchrones. Si votre service de paiement traite 1 000 commandes par seconde mais que votre service d'envoi d'emails ne peut en traiter que 50, SQS absorbe le tampon sans perdre un seul message.
+- **Amazon SNS (Simple Notification Service)** : Système de publication/abonnement (*Pub/Sub*). Un message publié est immédiatement diffusé à de multiples abonnés (emails, SMS, webhooks, files SQS).
+- **Amazon EventBridge** : Bus d'événements sans serveur qui connecte vos applications internes avec des services SaaS tiers (Stripe, GitHub, Zendesk).
+- **AWS Step Functions** : Orchestrateur visuel pour coordonner des flux complexes de fonctions Lambda avec gestion des erreurs et des réessais.
+
+---
+
+## 5. Intelligence Artificielle & Machine Learning
+
+Avec l'explosion de l'IA générative, AWS s'est positionné au premier plan :
+- **Amazon Bedrock** : API unifiée sans serveur permettant d'accéder aux modèles de fondation les plus avancés du marché (Claude d'Anthropic, Llama de Meta, Titan d'Amazon) sans gérer aucune infrastructure GPU.
+- **Amazon SageMaker** : Plateforme complète pour les data scientists permettant d'entraîner, régler finement (*fine-tuning*) et déployer des modèles personnalisés à grande échelle.
+
+---
+
+## 6. L'Analogie du Monde Réel : Le Grand Hypermarché
+
+> **L'Analogie de l'Hypermarché International :**
+> - Le **Rayon Calcul (Compute)** est le **four et les cuisiniers de la boulangerie** qui transforment la matière première en produit fini.
+> - Le **Rayon Stockage (S3)** est l'**entrepôt central géant** où les palettes de marchandises sont stockées en toute sécurité.
+> - Le **Rayon Bases de données (RDS / DynamoDB)** est le **registre des comptes et l'inventaire informatisé** qui sait exactement combien de produits sont en rayon.
+> - Le **Rayon Messages (SQS / SNS)** est le **système de tapis roulants et de haut-parleurs** qui prévient les équipes de réassort sans interruption.
+> - Le **Rayon IA (Bedrock)** est le **service d'analyse prédictive et de conciergerie automatisée** qui répond instantanément aux besoins des clients.
+
+---
+
+## 📺 Vidéo Recommandée : 50+ Services AWS Expliqués en 10 Minutes
+
+Pour survoler l'intégralité du catalogue AWS avec un condensé d'humour et de concision redoutable, voici la vidéo culte de Fireship :
+
+<Youtube id="JIbIYCM48to" />

@@ -191,13 +191,8 @@ Voici le cycle de livraison moderne sans coupure (*Zero-Downtime*) :
 
 ---
 
-## ❓ FAQ Schema : Questions Fréquentes sur les Serveurs VPS
+## 📺 Vidéo Recommandée : Configuration Complète d'un Serveur VPS
 
-### Quand choisir un VPS plutôt qu'un service managé comme AWS ou Heroku ?
-Un VPS est la solution idéale pour les projets nécessitant un **contrôle total du système**, des ressources matérielles prédictibles et un **budget fixe sans risque de surfacturation imprévue**. Pour des architectures distribuées nécessitant un autoscaling à la volée sur des milliers de nœuds, les clouds managés (AWS, GCP) deviennent préférables.
+Pour voir en pratique la configuration pas à pas d'un VPS Linux (SSH, pare-feu UFW, Nginx et nom de domaine), voici le tutoriel limpide de Tony Teaches Tech :
 
-### Pourquoi est-il déconseillé d'utiliser le compte root pour faire tourner son application ?
-Si votre application web contient une faille d'exécution de code à distance (RCE) et qu'elle s'exécute avec les privilèges `root`, l'attaquant prend instantanément le contrôle total du système d'exploitation. En utilisant un utilisateur dédié sans privilèges (`appuser`), l'attaquant reste confiné dans un dossier restreint.
-
-### Comment surveiller la santé et la charge d'un VPS en temps réel ?
-Utilisez des commandes système comme `htop` (processeur et mémoire), `df -h` (espace disque disponible) et `journalctl -u nom-service -f` pour lire les logs en direct. Pour une surveillance à distance, installez des agents légers comme Prometheus Node Exporter couplé à Grafana ou Netdata.
+<Youtube id="YiwBkRukugw" />
