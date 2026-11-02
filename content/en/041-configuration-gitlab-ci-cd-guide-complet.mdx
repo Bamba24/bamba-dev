@@ -1,0 +1,252 @@
+---
+title: "GitLab CI/CD Guide: Complete .gitlab-ci.yml Configuration"
+description: "Master production-grade GitLab CI/CD pipelines: stages, jobs, cache vs artifacts, environment secrets, runners, and advanced execution rules."
+tag: "DevOps"
+publishedAt: "2026-11-02"
+published: true
+time: 22
+---
+
+# GitLab CI/CD Guide: Complete .gitlab-ci.yml Configuration
+
+"Deploying manually on Friday at 7 PM via FTP or running a hasty git pull over SSH."
+
+This widespread habit has triggered more catastrophic production outages than any hardware vulnerability ever did.
+
+In contemporary software engineering, no code should ever reach production servers without passing through an automated quality gate: compilation, strict type checking, unit tests, security audits, and zero-downtime deployment pipelines.
+
+**GitLab CI/CD** has become a premier continuous integration and delivery platform due to its unified, declarative configuration stored in a single version-controlled file: **`.gitlab-ci.yml`**.
+
+In this technical guide, we will dissect the complete architecture of `.gitlab-ci.yml`, examine runner topologies, demystify the difference between *Cache* and *Artifacts*, and build a battle-tested production pipeline.
+
+---
+
+```txt
+┌────────────────────────────────────────────────────────────────────────┐
+│                   GITLAB CI/CD PIPELINE ARCHITECTURE                   │
+├────────────────────────────────────────────────────────────────────────┤
+│ STAGES (Sequential Ordered Phases)                                     │
+│   ┌──────────┐      ┌──────────┐      ┌──────────┐      ┌──────────┐   │
+│   │  build   │ ───► │   test   │ ───► │ package  │ ───► │  deploy  │   │
+│   └────┬─────┘      └────┬─────┘      └────┬─────┘      └────┬─────┘   │
+│        ▼                 ▼                 ▼                 ▼         │
+│  [compile-job]     [lint-job]        [docker-build]    [deploy-prod]   │
+│                    [unit-test-job]                                     │
+│                                                                        │
+│ JOBS (Parallel execution units inside the same stage)                  │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 1. How GitLab CI/CD Works Under the Hood
+
+GitLab CI/CD separates responsibilities into two distinct architectural tiers:
+1. **The Coordinator (GitLab Server)**: Parses `.gitlab-ci.yml` upon push events, computes the Directed Acyclic Graph (DAG) of dependencies, schedules jobs, and aggregates real-time logs and metrics.
+2. **The Runner (GitLab Runner)**: A lightweight daemon written in Go running on virtual machines, containers, or Kubernetes clusters. It regularly polls GitLab, clones the repository, and executes commands inside isolated execution sandboxes (typically Docker containers).
+
+### The Real-World Analogy
+> **The International Airport Analogy:** The GitLab Server acts as the **Air Traffic Control Tower**: it validates the overall flight schedule (`.gitlab-ci.yml`), manages runway priority, and tracks every flight. The GitLab Runners represent the **ground operations crew**: they independently refuel, inspect, load cargo, and handle turnaround procedures at individual boarding gates simultaneously.
+
+---
+
+## 2. Fundamental Blocks of `.gitlab-ci.yml`
+
+### 2.1 `stages` and `jobs`
+A **stage** establishes a chronological step. Jobs within the exact same stage run in **parallel**. The pipeline proceeds to the subsequent stage only if all jobs within the active stage succeed.
+
+```yaml
+# Execution sequence definition
+stages:
+  - lint
+  - test
+  - build
+  - deploy
+
+# Default container image applied across jobs
+default:
+  image: node:20-alpine
+```
+
+### 2.2 Script Directives: `before_script`, `script`, `after_script`
+- `before_script`: Initializes dependencies and exports operational environment variables.
+- `script`: The primary command block. If any command returns a non-zero exit code, the job halts immediately.
+- `after_script`: Executes cleanup procedures or sends telemetry alerts **regardless** of job success or failure.
+
+---
+
+## 3. Cache vs Artifacts: The Performance Trap
+
+Confusing **Cache** with **Artifacts** is one of the most common causes of slow or broken deployment pipelines.
+
+```txt
+┌─────────────────────────────────┬─────────────────────────────────┐
+│              CACHE              │            ARTIFACTS            │
+├─────────────────────────────────┼─────────────────────────────────┤
+│ • Speed optimization            │ • Definitive build outputs      │
+│ • Preserved across runs         │ • Transferred between stages    │
+│ • Safe to discard without error │ • Critical for pipeline success │
+│ • Ideal for: `node_modules`     │ • Ideal for: `dist/`, test xml  │
+└─────────────────────────────────┘ └─────────────────────────────────┘
+```
+
+1. **`cache`**:
+   - Purpose: Accelerates subsequent builds by reusing dependencies downloaded from external networks.
+   - Resiliency: The build must still pass if the cache is expired or purged.
+   - Partitioning Key: Use `key: files: [package-lock.json]` to invalidate cache solely when dependencies change.
+2. **`artifacts`**:
+   - Purpose: Safely transports indispensable build binaries to subsequent stages (for example, the compiled `dist/` directory needed by the deployment stage).
+   - Guarantee: Uploaded to the central GitLab storage coordinator with a specified lifespan (`expire_in: 1 week`).
+
+---
+
+## 4. Production Pipeline: Node.js and Docker Example
+
+Here is a full industrial-grade pipeline configuration for a modern TypeScript/Node.js web application:
+
+```yaml
+# ==============================================================================
+# PRODUCTION GITLAB CI/CD PIPELINE (Node.js / Docker)
+# ==============================================================================
+
+# 1. Ordered execution sequence
+stages:
+  - quality
+  - test
+  - build
+  - release
+  - deploy
+
+# 2. Default runtime environment
+default:
+  image: node:20-alpine
+
+# 3. Global Caching Strategy (Indexed by lockfile hash)
+cache:
+  key:
+    files:
+      - package-lock.json
+  paths:
+    - .npm/
+    - node_modules/
+  policy: pull
+
+# 4. Code Quality & Type Checking
+lint_and_types:
+  stage: quality
+  before_script:
+    - npm ci --cache .npm --prefer-offline
+  script:
+    - npm run lint
+    - npm run type-check
+
+# 5. Automated Unit & Integration Tests
+unit_tests:
+  stage: test
+  before_script:
+    - npm ci --cache .npm --prefer-offline
+  script:
+    - npm run test:coverage
+  artifacts:
+    when: always
+    reports:
+      junit: junit.xml
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage/cobertura-coverage.xml
+    expire_in: 30 days
+
+# 6. Build Stage (Generating Production Artifacts)
+compile_bundle:
+  stage: build
+  before_script:
+    - npm ci --cache .npm --prefer-offline
+  script:
+    - npm run build
+  artifacts:
+    name: "dist-bundle-$CI_COMMIT_SHORT_SHA"
+    paths:
+      - dist/
+    expire_in: 7 days
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+    - if: '$CI_COMMIT_BRANCH == "develop"'
+
+# 7. Containerization (Docker-in-Docker)
+build_docker_image:
+  stage: release
+  image: docker:24-cli
+  services:
+    - docker:24-dind
+  variables:
+    DOCKER_TLS_CERTDIR: "/certs"
+    IMAGE_NAME: "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA"
+    IMAGE_LATEST: "$CI_REGISTRY_IMAGE:latest"
+  before_script:
+    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
+  script:
+    - docker build -t "$IMAGE_NAME" -t "$IMAGE_LATEST" .
+    - docker push "$IMAGE_NAME"
+    - docker push "$IMAGE_LATEST"
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+
+# 8. Production Deployment (SSH / Zero Downtime)
+deploy_production:
+  stage: deploy
+  image: alpine:latest
+  environment:
+    name: production
+    url: https://app.bambadev.com
+  before_script:
+    - apk add --no-cache openssh-client
+    - eval $(ssh-agent -s)
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    - ssh-keyscan -H "$PRODUCTION_SERVER_IP" >> ~/.ssh/known_hosts
+  script:
+    - ssh $DEPLOY_USER@$PRODUCTION_SERVER_IP "docker pull $CI_REGISTRY_IMAGE:latest && docker compose -f /opt/app/docker-compose.yml up -d --remove-orphans"
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: manual # Requires human confirmation before production release
+```
+
+---
+
+## 5. Controlling Pipeline Logic with `rules`
+
+Older GitLab configurations relied on the `only` and `except` directives. Modern pipelines use the more powerful and predictable **`rules`** syntax.
+
+### Key Modifiers of `rules`
+- `if`: Evaluates conditions on built-in GitLab environment variables (`$CI_COMMIT_BRANCH`, `$CI_PIPELINE_SOURCE`, `$CI_MERGE_REQUEST_IID`).
+- `changes`: Triggers the job only if matched files were modified (e.g., run UI tests only when `frontend/` changes).
+- `when`:
+  - `on_success` (default): Runs if all upstream dependencies succeed.
+  - `manual`: Converts job execution into an explicit manual click in the UI.
+  - `delayed`: Delays execution for a specified duration (`start_in: 15 minutes`).
+  - `never`: Explicitly excludes the job from execution.
+
+---
+
+## 6. Secure Secrets and Masking (CI/CD Variables)
+
+Never hardcode access keys, tokens, or private credentials into your `.gitlab-ci.yml`.
+
+GitLab provides centralized secret management under **Settings > CI/CD > Variables**:
+- **Protected**: Available only to pipelines running on protected branches or tags (such as `main`).
+- **Masked**: Prevents accidental leakage by stripping the variable value from runner terminal output.
+- **File Variable**: Injects private SSH keys or configuration certificates as temporary files mounted inside the runner filesystem.
+
+---
+
+## ❓ FAQ Schema: Frequently Asked Questions
+
+### What is the difference between Shared Runners and Specific Runners?
+A **Shared Runner** is available across all projects in a GitLab organization, managed centrally with shared queue priority. A **Specific Runner** is provisioned on dedicated hardware (such as bare-metal servers or private VPC clusters) with tailored resources (high RAM, GPUs, local network access) allocated to a specific repository.
+
+### Why does a pipeline job fail with `exit code 137`?
+Exit code `137` signals a `SIGKILL` dispatched by the operating system kernel when the runner triggers the **OOM Killer (Out Of Memory)**. Your application compilation or Docker container exceeded the runner host's allocated memory. Increase RAM allocation or configure swap space.
+
+### How can a job execute immediately without waiting for other stage jobs?
+Use the **`needs`** keyword to create a Directed Acyclic Graph (DAG) pipeline. A job declared with `needs: [job_name]` begins as soon as that specific upstream job finishes, bypassing stage boundary synchronization.

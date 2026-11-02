@@ -1,0 +1,252 @@
+---
+title: "Guide Complet GitLab CI/CD : Maîtriser le Fichier .gitlab-ci.yml de Bout en Bout"
+description: "Apprenez à configurer un pipeline .gitlab-ci.yml de production : stages, jobs, cache vs artifacts, variables CI/CD, runners et règles d'exécution avancées."
+tag: "DevOps"
+publishedAt: "2026-11-02"
+published: true
+time: 22
+---
+
+# Guide Complet GitLab CI/CD : Maîtriser le Fichier .gitlab-ci.yml de Bout en Bout
+
+« *Le déploiement manuel du vendredi soir à 19h sur le serveur de production via un client FTP ou un simple git pull en SSH.* »
+
+Cette pratique a causé plus d'incidents de production et d'indisponibilités critiques que n'importe quelle faille de sécurité matérielle. 
+
+Dans l'ingénierie logicielle moderne, aucune ligne de code ne doit atteindre la production sans avoir franchi un sas d'automatisation rigoureux : compilation, validation des types, tests unitaires, audits de vulnérabilités et déploiement progressif sans interruption.
+
+**GitLab CI/CD** s'est imposé comme l'une des plateformes d'intégration et de livraison continues les plus puissantes du marché grâce à son approche déclarative unifiée dans un unique fichier versionné : **`.gitlab-ci.yml`**.
+
+Dans ce guide technique de référence, nous allons disséquer l'anatomie complète de `.gitlab-ci.yml`, décortiquer les mécanismes de runners, arbitrer le match crucial entre *Cache* et *Artifacts*, et construire un pipeline complet taillé pour la haute disponibilité.
+
+---
+
+```txt
+┌────────────────────────────────────────────────────────────────────────┐
+│                   ANATOMIE DU PIPELINE GITLAB CI/CD                    │
+├────────────────────────────────────────────────────────────────────────┤
+│ STAGES (Phases séquentielles ordonnées)                                │
+│   ┌──────────┐      ┌──────────┐      ┌──────────┐      ┌──────────┐   │
+│   │  build   │ ───► │   test   │ ───► │ package  │ ───► │  deploy  │   │
+│   └────┬─────┘      └────┬─────┘      └────┬─────┘      └────┬─────┘   │
+│        ▼                 ▼                 ▼                 ▼         │
+│  [compile-job]     [lint-job]        [docker-build]    [deploy-prod]   │
+│                    [unit-test-job]                                     │
+│                                                                        │
+│ JOBS (Unités d'exécution parallèles à l'intérieur d'un même stage)     │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 1. Comment Fonctionne GitLab CI/CD sous le Capot ?
+
+GitLab CI/CD repose sur une architecture découplée en deux éléments distincts :
+1. **Le Coordinateur (GitLab Server)** : Il analyse le fichier `.gitlab-ci.yml` dès qu'un push survient, résout le graphe de dépendances (*Directed Acyclic Graph* ou DAG), planifie les jobs et collecte les logs et métriques.
+2. **Le Runner (GitLab Runner)** : Un agent applicatif léger écrit en Go, installé sur une machine virtuelle, un conteneur ou un cluster Kubernetes. Il interroge périodiquement le serveur GitLab, télécharge le code source et exécute les scripts à l'intérieur d'un environnement hermétique (généralement une image Docker).
+
+### L'Analogie du Monde Réel
+> **L'Analogie de l'Aéroport International :** Le serveur GitLab est la **tour de contrôle** : il vérifie le plan de vol global (`.gitlab-ci.yml`), décide quel avion décolle en premier et sur quelle piste. Les GitLab Runners sont les **équipes au sol** : ils exécutent concrètement le ravitaillement, le contrôle technique et le chargement des bagages de façon autonome et parallèle dans chaque terminal.
+
+---
+
+## 2. Les Blocs Fondamentaux de `.gitlab-ci.yml`
+
+### 2.1 Les `stages` et les `jobs`
+Un **stage** définit une phase chronologique. Les jobs appartenant à un même stage s'exécutent en **parallèle**. Le pipeline ne passe au stage suivant que si tous les jobs du stage précédent ont réussi.
+
+```yaml
+# Définition de l'ordre d'exécution
+stages:
+  - lint
+  - test
+  - build
+  - deploy
+
+# Définition de l'image Docker par défaut pour tous les jobs
+default:
+  image: node:20-alpine
+```
+
+### 2.2 Les Directives de Script : `before_script`, `script`, `after_script`
+- `before_script` : Prépare l'environnement (ex: installer des dépendances, exporter des variables système).
+- `script` : La commande d'exécution principale (si elle échoue avec un code d'erreur différent de 0, le job plante).
+- `after_script` : Nettoyage ou notification, exécuté **systématiquement**, même si le job principal a échoué.
+
+---
+
+## 3. Cache vs Artifacts : Le Piège Ultime de Performance
+
+La distinction entre **Cache** et **Artifacts** est l'une des erreurs les plus fréquentes commises par les équipes DevOps débutantes.
+
+```txt
+┌─────────────────────────────────┬─────────────────────────────────┐
+│              CACHE              │            ARTIFACTS            │
+├─────────────────────────────────┼─────────────────────────────────┤
+│ • Optimisation de vitesse       │ • Livrables et résultats réels  │
+│ • Transféré entre exécutions    │ • Transmis de stage en stage    │
+│ • Peut disparaître sans impact  │ • Obligatoire pour le pipeline  │
+│ • Idéal pour : `node_modules`   │ • Idéal pour : `dist/`, rapports│
+└─────────────────────────────────┘ └─────────────────────────────────┘
+```
+
+1. **`cache`** :
+   - But : Accélérer les builds ultérieurs en réutilisant des fichiers téléchargés sur Internet.
+   - Non garanti : Si le cache est purgé, le build doit quand même réussir en réinstallant les paquets.
+   - Clé de partitionnement : On utilise souvent `key: files: [package-lock.json]` pour invalider le cache uniquement si les dépendances changent.
+2. **`artifacts`** :
+   - But : Transmettre des fichiers compilés indispensables d'un job vers un job suivant (ex: le dossier `dist/` compilé au stage *build* doit être envoyé au stage *deploy*).
+   - Garanti : Téléchargé et stocké de manière formelle sur le coordinateur GitLab avec une date d'expiration (`expire_in: 1 week`).
+
+---
+
+## 4. Exemple Concret : Pipeline `.gitlab-ci.yml` de Production
+
+Voici une configuration complète de niveau industriel pour une application web moderne (TypeScript / Node.js) conteneurisée et déployée :
+
+```yaml
+# ==============================================================================
+# PIPELINE GITLAB CI/CD DE PRODUCTION (Node.js / Docker)
+# ==============================================================================
+
+# 1. Définition des étapes séquentielles
+stages:
+  - quality
+  - test
+  - build
+  - release
+  - deploy
+
+# 2. Image d'exécution de base
+default:
+  image: node:20-alpine
+
+# 3. Stratégie de Cache Global (node_modules indexé sur le hash du lockfile)
+cache:
+  key:
+    files:
+      - package-lock.json
+  paths:
+    - .npm/
+    - node_modules/
+  policy: pull
+
+# 4. Étape de Vérification de la Qualité du Code
+lint_and_types:
+  stage: quality
+  before_script:
+    - npm ci --cache .npm --prefer-offline
+  script:
+    - npm run lint
+    - npm run type-check
+
+# 5. Étape des Tests Automatisés
+unit_tests:
+  stage: test
+  before_script:
+    - npm ci --cache .npm --prefer-offline
+  script:
+    - npm run test:coverage
+  artifacts:
+    when: always
+    reports:
+      junit: junit.xml
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage/cobertura-coverage.xml
+    expire_in: 30 days
+
+# 6. Étape de Compilation (Génération des artefacts de production)
+compile_bundle:
+  stage: build
+  before_script:
+    - npm ci --cache .npm --prefer-offline
+  script:
+    - npm run build
+  artifacts:
+    name: "dist-bundle-$CI_COMMIT_SHORT_SHA"
+    paths:
+      - dist/
+    expire_in: 7 days
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+    - if: '$CI_COMMIT_BRANCH == "develop"'
+
+# 7. Étape de Packaging Docker (Docker-in-Docker)
+build_docker_image:
+  stage: release
+  image: docker:24-cli
+  services:
+    - docker:24-dind
+  variables:
+    DOCKER_TLS_CERTDIR: "/certs"
+    IMAGE_NAME: "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA"
+    IMAGE_LATEST: "$CI_REGISTRY_IMAGE:latest"
+  before_script:
+    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
+  script:
+    - docker build -t "$IMAGE_NAME" -t "$IMAGE_LATEST" .
+    - docker push "$IMAGE_NAME"
+    - docker push "$IMAGE_LATEST"
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+
+# 8. Déploiement Sécurisé en Production (via SSH ou Runner Dédié)
+deploy_production:
+  stage: deploy
+  image: alpine:latest
+  environment:
+    name: production
+    url: https://app.bambadev.com
+  before_script:
+    - apk add --no-cache openssh-client
+    - eval $(ssh-agent -s)
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    - ssh-keyscan -H "$PRODUCTION_SERVER_IP" >> ~/.ssh/known_hosts
+  script:
+    - ssh $DEPLOY_USER@$PRODUCTION_SERVER_IP "docker pull $CI_REGISTRY_IMAGE:latest && docker compose -f /opt/app/docker-compose.yml up -d --remove-orphans"
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: manual # Déclenchement manuel pour contrôle humain final
+```
+
+---
+
+## 5. Maîtriser les Règles d'Exécution : La Directive `rules`
+
+Dans les anciennes versions de GitLab, on utilisait les mots-clés `only` et `except`. Ils sont désormais dépréciés au profit de **`rules`**, infiniment plus prédictible et expressif.
+
+### Les Modificateurs Clés de `rules`
+- `if` : Évalue une condition sur des variables pré-remplies par GitLab (`$CI_COMMIT_BRANCH`, `$CI_PIPELINE_SOURCE`, `$CI_MERGE_REQUEST_IID`).
+- `changes` : Déclenche le job uniquement si certains fichiers spécifiques ont été modifiés (ex: lancer les tests front uniquement si le dossier `frontend/` a changé).
+- `when` :
+  - `on_success` (défaut) : Exécute si les étapes précédentes ont réussi.
+  - `manual` : Transforme le bouton de déploiement en validation manuelle humaine.
+  - `delayed` : Attend un délai défini (ex: `start_in: 15 minutes`).
+  - `never` : Interdit formellement l'exécution.
+
+---
+
+## 6. Variables Secrètes et Masquage (CI/CD Variables)
+
+Ne commitez **JAMAIS** de mots de passe, tokens API ou clés privées SSH en clair dans votre `.gitlab-ci.yml`.
+
+GitLab intègre un coffre-fort dans **Settings > CI/CD > Variables** :
+- **Protected** : La variable n'est accessible que sur les branches protégées (comme `main` ou `production`).
+- **Masked** : Empêche l'affichage accidentel de la valeur secrète dans les logs de sortie console du runner.
+- **File Variable** : Injecte directement une clé SSH ou un fichier `.pem` sous forme de fichier temporaire monté dans le runner.
+
+---
+
+## ❓ FAQ Schema : Questions Fréquentes sur GitLab CI/CD
+
+### Quelle est la différence entre un Shared Runner et un Specific Runner ?
+Un **Shared Runner** est mutualisé par l'instance GitLab pour l'ensemble des projets de l'entreprise (souvent avec une file d'attente partagée). Un **Specific Runner** est dédié exclusivement à un projet sensible, installé sur une machine bare-metal ou privée avec des capacités matérielles supérieures (ex: GPU pour l'IA, accès au réseau local).
+
+### Pourquoi mon pipeline GitLab affiche-t-il `Job failed: exit code 137` ?
+Le code de sortie `137` correspond au signal UNIX `SIGKILL` envoyé par le système d'exploitation lorsqu'un processus est tué par le **OOM Killer (*Out Of Memory*)**. Votre conteneur Docker ou votre compilation TypeScript a dépassé la limite de RAM allouée au runner. Augmentez la mémoire disponible ou activez un swap.
+
+### Comment exécuter des jobs indépendamment sans attendre la fin du stage ?
+Utilisez le mot-clé **`needs`** pour créer un pipeline en graphe acyclique dirigé (DAG). Un job peut ainsi démarrer dès qu'un job spécifique est terminé, sans attendre la fin des autres jobs de son stage.

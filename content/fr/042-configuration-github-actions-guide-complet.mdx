@@ -1,0 +1,274 @@
+---
+title: "Guide GitHub Actions : Configurer Vos Workflows CI/CD"
+description: "Apprenez à configurer GitHub Actions de production : syntaxe YAML, déclencheurs, matrix strategy, cache des dépendances, secrets et déploiement continu."
+tag: "DevOps"
+publishedAt: "2026-11-02"
+published: true
+time: 20
+---
+
+# Guide GitHub Actions : Configurer Vos Workflows CI/CD
+
+« *Mais ça marchait sur ma machine !* »
+
+Cette phrase emblématique résonne dans tous les départements d'ingénierie logicielle. Un développeur pousse du code avec une version locale de Node.js légèrement différente, une variable d'environnement oubliée ou un test non exécuté, et le build de production s'effondre.
+
+Avec **GitHub Actions**, l'automatisation s'intègre au cœur même de votre dépôt Git. Finies les architectures d'intégration continue complexes nécessitant la maintenance de serveurs tiers : vos pipelines de tests, de sécurité et de déploiement sont décrits en YAML dans le dossier `.github/workflows/`.
+
+Dans ce guide pratique complet, nous allons explorer les concepts fondamentaux de GitHub Actions, optimiser les temps d'exécution grâce au cache et aux matrices de tests, et construire un workflow complet de production pour une application web moderne.
+
+---
+
+```txt
+┌────────────────────────────────────────────────────────────────────────┐
+│                   ANATOMIE D'UN WORKFLOW GITHUB ACTIONS                │
+├────────────────────────────────────────────────────────────────────────┤
+│ ÉVÉNEMENT DÉCLENCHEUR (on: push, pull_request, schedule)              │
+│                              │                                         │
+│                              ▼                                         │
+│ WORKFLOW (.github/workflows/ci.yml)                                    │
+│   ┌───────────────────────────┐      ┌───────────────────────────┐     │
+│   │ Job 1 : Lint & Tests      │ ───► │ Job 2 : Build & Deploy    │     │
+│   │ (runs-on: ubuntu-latest)  │      │ (needs: [lint-and-tests]) │     │
+│   ├───────────────────────────┤      ├───────────────────────────┤     │
+│   │ Step 1 : Checkout code    │      │ Step 1 : Checkout code    │     │
+│   │ Step 2 : Setup Node.js    │      │ Step 2 : Login to GHCR    │     │
+│   │ Step 3 : Restore cache    │      │ Step 3 : Build Docker img │     │
+│   │ Step 4 : Run test suite   │      │ Step 4 : Deploy to Server │     │
+│   └───────────────────────────┘      └───────────────────────────┘     │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 1. Concepts Clés : Comment Fonctionne GitHub Actions ?
+
+L'écosystème GitHub Actions est structuré autour de six briques élémentaires :
+
+1. **Workflows** : Processus automatisés configurés dans des fichiers `.yml` au sein du répertoire `.github/workflows/`.
+2. **Events (`on`)** : Événements GitHub déclenchant le workflow (`push`, `pull_request`, `release`, `issues`, ou manuel via `workflow_dispatch`).
+3. **Jobs** : Ensemble d'étapes exécutées sur le même exécuteur (*Runner*). Par défaut, les jobs s'exécutent en **parallèle**. Pour les ordonner, on utilise la directive `needs`.
+4. **Steps** : Tâches individuelles exécutées en séquence dans un job (exécuter une commande bash ou invoquer une Action réutilisable).
+5. **Actions** : Modules autonomes réutilisables issus du *GitHub Marketplace* (ex: `actions/checkout@v4`, `actions/setup-node@v4`).
+6. **Runners** : Machines virtuelles (Ubuntu, Windows, macOS) hébergées par GitHub ou auto-hébergées (*Self-Hosted*) qui exécutent vos commandes.
+
+### L'Analogie du Monde Réel
+> **L'Analogie de l'Usine Automobile Automatisée :** Le **Workflow** est la chaîne de montage complète. L'**Event** est l'arrivée d'une nouvelle commande client. Les **Jobs** sont les stations de travail (soudure, peinture, motorisation) opérant en parallèle. Les **Runners** sont les robots d'usine, et les **Actions** sont les bras d'outillage interchangeables préfabriqués clipsés sur chaque robot.
+
+---
+
+## 2. Déclencheurs Avancés (`on`) et Filtrage Intelligent
+
+Pour éviter de gaspiller vos minutes de calcul gratuites, filtrez précisément les événements déclencheurs :
+
+```yaml
+name: Continuous Integration
+
+on:
+  # Déclenchement lors d'un push sur main
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+
+  # Déclenchement sur les Pull Requests ciblant main
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'src/**'
+      - 'package.json'
+      - 'package-lock.json'
+
+  # Déclenchement manuel avec paramètres
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environnement cible'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+```
+
+---
+
+## 3. Optimisation des Performances : Cache et Matrix Strategy
+
+### 3.1 Accélérer l'installation avec le Cache
+Télécharger des centaines de mégaoctets de `node_modules` à chaque commit ralentit considérablement la livraison. L'action officielle `actions/setup-node` intègre un cache natif basé sur le hash du lockfile :
+
+```yaml
+- name: Installer Node.js avec Cache NPM
+  uses: actions/setup-node@v4
+  with:
+    node-version: 20.x
+    cache: 'npm'
+```
+
+### 3.2 Valider sur Plusieurs Environnements avec la Matrice (`matrix`)
+La directive `strategy.matrix` permet d'exécuter un job simultanément sur plusieurs versions de langage ou systèmes d'exploitation :
+
+```yaml
+jobs:
+  multi-version-test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x, 22.x]
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configuration de Node ${{ matrix.node-version }} sur ${{ matrix.os }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+      - run: npm ci
+      - run: npm test
+```
+
+---
+
+## 4. Pipeline de Production Complet (Node.js & Docker)
+
+Voici un workflow complet de production situé dans `.github/workflows/ci-cd.yml` :
+
+```yaml
+name: Production CI/CD Pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Permissions minimales requises (Principe de moindre privilège)
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  # ============================================================================
+  # 1. QUALITÉ DE CODE & TESTS
+  # ============================================================================
+  test:
+    name: Lint, Typecheck & Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Récupérer le code source
+        uses: actions/checkout@v4
+
+      - name: Installer Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Installer les dépendances
+        run: npm ci
+
+      - name: Vérification ESLint
+        run: npm run lint
+
+      - name: Contrôle strict TypeScript
+        run: npm run type-check
+
+      - name: Lancement de la suite de tests
+        run: npm test -- --coverage
+
+  # ============================================================================
+  # 2. CONSTRUCTION DOCKER & REGISTRE GHCR
+  # ============================================================================
+  build-and-push:
+    name: Build & Push Docker Image
+    needs: [test]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Récupérer le code source
+        uses: actions/checkout@v4
+
+      - name: Configuration de Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Connexion au GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extraction des métadonnées Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=sha,format=short
+            type=raw,value=latest
+
+      - name: Compiler et publier l'image conteneur
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ============================================================================
+  # 3. DÉPLOIEMENT SUR SERVEUR DE PRODUCTION
+  # ============================================================================
+  deploy:
+    name: Zero-Downtime Deployment
+    needs: [build-and-push]
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://bambadev.com
+    steps:
+      - name: Déploiement via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          script: |
+            docker login ghcr.io -u ${{ github.actor }} -p ${{ secrets.GITHUB_TOKEN }}
+            docker pull ghcr.io/${{ github.repository }}:latest
+            cd /opt/bambadev-app
+            docker compose up -d --remove-orphans
+```
+
+---
+
+## 5. Gestion Sécurisée des Secrets et Environnements
+
+GitHub propose deux niveaux d'isolation pour protéger vos informations sensibles :
+
+### 5.1 Repository Secrets
+Configurés dans **Settings > Secrets and variables > Actions**. Ces clés secrètes sont chiffrées à l'aide de libsodium et masquées automatiquement dans les journaux d'exécution (`***`).
+
+### 5.2 GitHub Environments & Protection Rules
+Pour la production, créez un **Environment** nommé `production` :
+- **Required Reviewers** : Exige l'approbation manuelle d'un lead DevOps avant que le job ne s'exécute.
+- **Wait Timer** : Pause temporisée avant déploiement.
+- **Deployment Branches** : Limite le déploiement exclusivement à la branche `main`.
+
+---
+
+## ❓ FAQ Schema : Questions Fréquentes sur GitHub Actions
+
+### Quelle est la différence entre GitHub-hosted et Self-hosted runners ?
+Les **GitHub-hosted runners** sont des machines éphémères gérées par GitHub (aucun serveur à maintenir, image propre à chaque run). Les **Self-hosted runners** tournent sur vos propres serveurs ou VM privées : ils sont gratuits en temps de calcul, permettent d'utiliser du matériel puissant ou d'accéder à un réseau d'entreprise fermé.
+
+### Comment réutiliser du code entre plusieurs workflows ?
+Utilisez les **Composite Actions** pour factoriser une suite de commandes réutilisables, ou les **Reusable Workflows** (`workflow_call`) pour appeler un workflow complet depuis un autre dépôt ou fichier.
+
+### Comment éviter qu'une PR malveillante n'accède à mes secrets ?
+Sur les dépôts open-source, les déclencheurs `pull_request` provenant de forks n'ont **aucun accès aux secrets** du dépôt d'origine par mesure de sécurité. L'événement `pull_request_target` donne accès aux secrets mais doit être manipulé avec d'extrêmes précautions pour éviter les injections de code.
