@@ -156,3 +156,11 @@ export function LastLoginBadge({ date }: { date?: string | null }) {
 1. **Bannissez `any` et les assertions aveugles (`as unknown as T`)** : Si le type ne colle pas, le problème vient de votre modèle ou d'une absence de validation runtime.
 2. **Remplacez `filter(Boolean)`** par un vrai type guard : `(x): x is NonNullable<typeof x> => x != null`.
 3. **Validez les frontières réseau** : Ce qui vient de l'API est faillible. Traitez les paramètres externes avec défiance grâce à des types stricts et des fonctions résilientes.
+
+---
+
+## 📺 Vidéo Recommandée : TypeScript pour Développeurs : Les Fondamentaux
+
+Pour consolider votre maîtrise du système de types statiques de TypeScript et écrire du code plus sûr, voici le cours de référence de Programming with Mosh :
+
+<Youtube id="d56mG7DezGs" />

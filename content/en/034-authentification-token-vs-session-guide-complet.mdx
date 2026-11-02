@@ -296,3 +296,11 @@ To combine the speed of tokens with the revocation control of sessions:
 2. **Browsing**: The client calls APIs with the fast `accessToken`.
 3. **Expiration**: When the `accessToken` expires, the frontend hits `/api/auth/refresh`. The server validates the `refreshToken` against the database and returns a fresh pair.
 4. **Logout / Revocation**: The server deletes the `refreshToken` from the database, instantly revoking access.
+
+---
+
+## 📺 Recommended Video : JWT vs Session Authentication Explained
+
+To make an informed architectural decision between stateless JWT tokens and server-side session cookies, watch this guide by Web Dev Simplified:
+
+<Youtube id="7Q17ubqLfaM" />
