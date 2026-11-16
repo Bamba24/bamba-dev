@@ -1,0 +1,240 @@
+---
+title: "CRUD Avancé : Pagination Curseur vs Offset, Recherche et Filtres"
+description: "Passez au CRUD de niveau production : Pagination par curseur (Keyset), pièges de l'OFFSET, recherche textuelle GIN/Trigramme et filtres dynamiques indexés."
+tag: "Backend"
+publishedAt: "2026-11-08"
+published: true
+time: 14
+---
+
+# CRUD Avancé : Pagination Curseur vs Offset, Recherche et Filtres
+
+Créer un CRUD basique avec une table de 50 utilisateurs prend 15 minutes dans n'importe quel framework web : un `SELECT * FROM users LIMIT 10 OFFSET 20`, un `WHERE name ILIKE '%john%'`, et le tour est joué.
+
+Mais lorsque votre application passe en production et franchit le cap des **500 000 enregistrements**, ce CRUD d'école d'ingénieurs se transforme en cauchemar :
+- La page 5 000 de votre tableau met **4,2 secondes** à charger, saturant les I/O du disque dur de votre base de données.
+- Vos utilisateurs se plaignent de voir des doublons ou de rater des lignes lorsqu'ils cliquent sur le bouton « Page Suivante » pendant que de nouvelles commandes sont créées.
+- Une simple recherche textuelle met le CPU de votre cluster PostgreSQL à 100 %, car le moteur effectue un balayage séquentiel complet (*Sequential Scan*) de toute la table.
+
+Construire un CRUD de niveau senior exige de maîtriser **la pagination par curseur (Keyset Pagination)**, l'indexation textuelle avancée et la composition de filtres dynamiques ultra-performants.
+
+---
+
+## 1. Le Piège Mortel de la Pagination par Offset
+
+La pagination par offset repose sur deux paramètres : `LIMIT` (taille de page) et `OFFSET` (nombre de lignes à sauter).
+
+```sql
+-- Page 1 : Instantanée (1 ms)
+SELECT id, title, created_at FROM articles ORDER BY id DESC LIMIT 20 OFFSET 0;
+
+-- Page 5 000 : Lenteur critique (3 800 ms)
+SELECT id, title, created_at FROM articles ORDER BY id DESC LIMIT 20 OFFSET 100000;
+```
+
+### Pourquoi `OFFSET 100000` détruit les performances ?
+Une base de données relationnelle ne possède pas de baguette magique pour sauter directement à la 100 000ᵉ ligne. Le moteur SQL doit :
+1. Parcourir et trier **100 020 lignes** depuis le disque ou la mémoire.
+2. Jeter à la poubelle les 100 000 premières lignes.
+3. Renvoyer uniquement les 20 lignes restantes.
+
+Plus l'utilisateur avance dans les pages, plus la requête devient lente : la complexité est en **`O(N)`**.
+
+### Le Phénomène du « Page Drift » (Décalage de données)
+Imaginez qu'un utilisateur consulte la page 1 (éléments 1 à 20). Pendant qu'il lit, 5 nouveaux articles sont insérés par d'autres utilisateurs. 
+
+Lorsqu'il clique sur « Page 2 » (`OFFSET 20`), les éléments qui occupaient les positions 16 à 20 sur la page 1 ont été poussés aux positions 21 à 25 : **l'utilisateur revoit 5 doublons qu'il vient déjà de consulter**. Si des éléments avaient été supprimés, il aurait au contraire raté des lignes sans jamais le savoir.
+
+---
+
+## 2. La Solution de Production : La Pagination par Curseur (Keyset)
+
+Au lieu de dire à la base de données *« saute 100 000 lignes »*, la pagination par curseur lui dit : *« donne-moi les 20 lignes qui se trouvent immédiatement APRÈS le dernier enregistrement que j'ai vu »*.
+
+```sql
+-- Utilisation d'un index B-Tree direct : O(log N)
+SELECT id, title, created_at 
+FROM articles 
+WHERE id < 'art_dernier_id_vu' 
+ORDER BY id DESC 
+LIMIT 20;
+```
+
+```txt
+┌────────────────────────────────────────────────────────┐
+│             OFFSET PAGINATION (Lente : O(N))           │
+│ [ 1 .................... 100 000 ] ──> [ 20 lignes ]   │
+│   (Scanne et jette 100 000 lignes)                     │
+└────────────────────────────────────────────────────────┘
+
+┌────────────────────────────────────────────────────────┐
+│             CURSOR PAGINATION (Rapide : O(log N))      │
+│               [ B-Tree Index Seek ]                    │
+│                        │                               │
+│                        ▼                               │
+│               WHERE id < 'art_981' ──> [ 20 lignes ]   │
+│   (Accès direct sans aucun déchet de lecture)          │
+└────────────────────────────────────────────────────────┘
+```
+
+### Avantages majeurs du curseur :
+1. **Performance constante :** Que vous lisiez la page 1 ou la page 10 000, le temps de réponse reste strictement identique (**moins de 2 millisecondes** grâce au parcours de l'arbre B-Tree en `O(log N)`).
+2. **Immunité au Page Drift :** Les insertions et suppressions concurrentes ne créent ni doublons ni trous dans la pagination.
+3. **Idéal pour l'Infinite Scroll :** Le standard absolu des fils d'actualité et APIs modernes (GraphQL Relay, Twitter, Slack).
+
+---
+
+## 3. Implémentation d'un Service de Pagination par Curseur en TypeScript
+
+Pour ne pas exposer directement la clé primaire interne de votre base de données aux clients, le curseur est généralement encodé sous forme d'une chaîne opaque en **Base64** :
+
+```typescript
+import { z } from 'zod';
+
+// Schéma de validation des paramètres entrants
+export const PaginationQuerySchema = z.object({
+  limit: z.coerce.number().min(1).max(100).default(20),
+  cursor: z.string().optional(),
+});
+
+export type PaginationQuery = z.infer<typeof PaginationQuerySchema>;
+
+export interface CursorPayload {
+  readonly id: string;
+  readonly createdAt: string;
+}
+
+export interface PaginatedResult<T> {
+  readonly items: readonly T[];
+  readonly nextCursor: string | null;
+  readonly hasMore: boolean;
+}
+
+// Utilitaires de conversion de curseur opaque
+export function encodeCursor(payload: CursorPayload): string {
+  return Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url');
+}
+
+export function decodeCursor(cursorString: string): CursorPayload | null {
+  try {
+    const raw = Buffer.from(cursorString, 'base64url').toString('utf8');
+    const parsed = JSON.parse(raw) as unknown;
+    
+    if (typeof parsed === 'object' && parsed !== null && 'id' in parsed && 'createdAt' in parsed) {
+      return parsed as CursorPayload;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+```
+
+### Le Repository SQL avec Curseur Composite (Date + ID) :
+
+Si vous triez par date de création, plusieurs lignes peuvent partager exactement la même milliseconde. Il est donc indispensable d'utiliser un **curseur composite `(created_at, id)`** pour garantir l'unicité du tri :
+
+```typescript
+export async function fetchArticlesByCursor(
+  db: DatabaseClient,
+  query: PaginationQuery
+): Promise<PaginatedResult<Article>> {
+  const pageSize = query.limit;
+  const decoded = query.cursor ? decodeCursor(query.cursor) : null;
+
+  // Astuce de pro : on demande (limit + 1) éléments pour savoir s'il existe une page suivante
+  // sans avoir besoin de faire un coûteux SELECT COUNT(*) séparé !
+  const rows = await db.query<Article>(`
+    SELECT id, title, created_at
+    FROM articles
+    WHERE (
+      $1::timestamptz IS NULL OR 
+      (created_at, id) < ($1::timestamptz, $2::text)
+    )
+    ORDER BY created_at DESC, id DESC
+    LIMIT $3;
+  `, [decoded?.createdAt ?? null, decoded?.id ?? null, pageSize + 1]);
+
+  const hasMore = rows.length > pageSize;
+  const items = hasMore ? rows.slice(0, pageSize) : rows;
+
+  let nextCursor: string | null = null;
+  const lastItem = items[items.length - 1];
+
+  if (hasMore && lastItem) {
+    nextCursor = encodeCursor({
+      id: lastItem.id,
+      createdAt: lastItem.createdAt.toISOString(),
+    });
+  }
+
+  return {
+    items,
+    nextCursor,
+    hasMore,
+  };
+}
+```
+
+---
+
+## 4. Recherche Avancée : Sortir du Piège du `ILIKE '%terme%'`
+
+Un autre goulot d'étranglement majeur des CRUD traditionnels est la recherche textuelle naïve :
+
+```sql
+-- L'anti-pattern absolu :
+SELECT * FROM products WHERE name ILIKE '%chaussure%';
+```
+
+Un index standard B-Tree fonctionne comme un dictionnaire alphabétique : il ne peut chercher rapidement que si le mot **commence** par la lettre recherchée (`LIKE 'chaussure%'`). 
+
+Dès que vous ajoutez un `%` au début, l'index B-Tree est totalement inutilisable : PostgreSQL est contraint de lire chaque ligne de la table une par une (**Full Table Scan**).
+
+### La Solution PostgreSQL : L'Index GIN Trigramme (`pg_trgm`)
+L'extension `pg_trgm` découpe les mots en trigrammes (groupes de 3 lettres consécutives). Elle permet d'accélérer les recherches de sous-chaînes au milieu des phrases avec un index **GIN (Generalized Inverted Index)** :
+
+```sql
+-- 1. Activer l'extension native
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
+-- 2. Créer l'index trigramme sur la colonne cible
+CREATE INDEX idx_products_name_trgm ON products USING gin (name gin_trgm_ops);
+
+-- 3. La requête utilise désormais un Bitmap Index Scan ultra-rapide !
+SELECT id, name, price 
+FROM products 
+WHERE name ILIKE '%chaussure%' 
+LIMIT 20;
+```
+
+---
+
+## 5. Filtres Multi-Critères et Règle du Plus Long Préfixe (Leftmost Prefix Rule)
+
+Lorsque votre CRUD propose des filtres multiples (Statut, Catégorie, Plage de dates, Prix), créer un index individuel sur chaque colonne est inefficace.
+
+Il faut concevoir des **Index Composites B-Tree** :
+
+```sql
+CREATE INDEX idx_orders_status_created ON orders (status, created_at);
+```
+
+> [!IMPORTANT]
+> **La Règle du Préfixe Gauche :** Cet index composite ne peut être utilisé que si votre clause `WHERE` filtre d'abord sur la première colonne (`status`).
+> - `WHERE status = 'PAID' AND created_at > NOW() - INTERVAL '7 days'` → **Index pleinement utilisé.**
+> - `WHERE created_at > NOW() - INTERVAL '7 days'` → **Index inutilisé** (l'index commence par `status`, il ne peut pas démarrer par `created_at`).
+
+---
+
+## Comparatif Synthétique des Stratégies de Pagination
+
+| Critère | Pagination Offset (`LIMIT / OFFSET`) | Pagination par Curseur (Keyset) |
+| :--- | :--- | :--- |
+| **Complexité Temporelle** | `O(N)` (dégradation proportionnelle) | `O(log N)` (vitesse constante) |
+| **Résistance aux mutations** | Vulnérable au Page Drift (doublons/trous) | Immunisée (ancrage sur clé unique) |
+| **Saut vers page arbitraire** | Oui (ex: aller direct à la page 42) | Non (navigation séquentielle) |
+| **Coût du `COUNT(*)` total** | Souvent requis pour afficher "Page 1 sur 50" | Inutile (utilisation du flag `hasMore`) |
+| **Usage recommandé** | Petits backoffices internes (< 1 000 lignes) | Flux e-commerce, réseaux sociaux, APIs publiques |
+
+En remplaçant les offsets par des curseurs composites, en abandonnant les `ILIKE` non indexés au profit d'index trigrammes GIN et en optimisant vos requêtes avec l'astuce du `LIMIT + 1`, vous construisez des CRUD capables d'encaisser des millions de lignes avec des temps de réponse sous les 10 millisecondes.

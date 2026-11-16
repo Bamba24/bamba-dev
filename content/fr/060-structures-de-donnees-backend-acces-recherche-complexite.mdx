@@ -1,0 +1,198 @@
+---
+title: "Structures de Données et Données Backend : Accès, Recherche et Big-O"
+description: "Optimisez vos données reçues du backend : Array, Record, Map ou Set ? Analysez la complexité algorithmique entre accès direct O(1) et recherche O(n)."
+tag: "Architecture"
+publishedAt: "2026-11-05"
+published: true
+time: 12
+---
+
+# Structures de Données et Données Backend : Accès, Recherche et Big-O
+
+Imaginez la scène : votre application frontend reçoit du backend une liste de 10 000 produits et 50 000 lignes de commandes associées. 
+
+Pour afficher le statut de chaque commande avec les détails du produit, un développeur écrit innocemment cette ligne de code :
+
+```typescript
+// L'anti-pattern meurtrier : O(n * m)
+const enrichedOrders = orders.map((order) => {
+  const product = products.find((p) => p.id === order.productId);
+  return { ...order, product };
+});
+```
+
+En local avec 10 produits, la page charge en 2 millisecondes. En production, le navigateur freeze complètement pendant **3,5 secondes**, le ventilateur du processeur s'emballe et l'utilisateur abandonne son panier.
+
+Pourquoi ? Parce que pour 50 000 commandes et 10 000 produits, ce code effectue **500 000 000 de comparaisons** dans la boucle événementielle JavaScript.
+
+Le choix de la structure de données utilisée pour stocker et manipuler une réponse d'API n'est pas une question de préférence stylistique : c'est ce qui sépare une interface fluide à 60 FPS d'un plantage complet.
+
+---
+
+## 1. Les Deux Opérations Fondamentales : Accéder vs Rechercher
+
+Avant de choisir une structure de données en mémoire, vous devez identifier le profil d'accès de votre composant :
+
+```txt
+┌───────────────────────────────────────────────────────────────┐
+│ 1. ACCÉDER (Access) :                                         │
+│ « Donne-moi la valeur dont je connais DÉJÀ l'identifiant. »    │
+│ Exemple : userMap.get("usr_981") ou usersById["usr_981"]     │
+│ Complexité Idéale : O(1)                                      │
+├───────────────────────────────────────────────────────────────┤
+│ 2. RECHERCHER / FILTRER (Search & Filter) :                   │
+│ « Trouve-moi tous les éléments qui respectent un critère P. » │
+│ Exemple : products.filter(p => p.price > 100 && p.inStock)   │
+│ Complexité Inévitable : O(n)                                  │
+└───────────────────────────────────────────────────────────────┘
+```
+
+Si votre besoin applicatif est de faire des **lectures ciblées par ID**, conserver vos données sous forme de tableau brut (`Array<T>`) est une erreur d'architecture majeure.
+
+---
+
+## 2. Le Comparatif des 4 Structures Essentielles
+
+Voici comment se comportent les 4 structures de données fondamentales de TypeScript / JavaScript :
+
+| Structure | Accès par Clé / Index | Recherche par Valeur | Insertion / Suppression | Mémoire |
+| :--- | :--- | :--- | :--- | :--- |
+| **`Array` (`T[]`)** | `O(1)` *(par index numérique)* | `O(n)` *(via `find`/`filter`)* | `O(n)` *(sauf push/pop en fin `O(1)`)* | Très faible et compacte |
+| **`Object` (`Record<K, V>`)** | `O(1)` *(amorti)* | `O(n)` *(via `Object.values`)* | `O(1)` | Moyenne (overhead d'objet V8) |
+| **`Map<K, V>`** | `O(1)` *(garanti)* | `O(n)` | `O(1)` *(optimisé par la spec)* | Modérée (structure dédiée) |
+| **`Set<T>`** | N/A *(pas de clé/valeur)* | `O(1)` *(test d'appartenance `has`)* | `O(1)` | Très efficace |
+
+---
+
+## 3. L'Anatomie du Désastre : De O(n * m) à O(n + m)
+
+Reprenons notre problème de jointure e-commerce. La méthode naïve `orders.map` combinée à `products.find` imbrique deux boucles linéaires :
+
+> **Complexité :** `O(n * m)`
+
+Avec `n = 50 000` et `m = 10 000`, nous avons `500 000 000` itérations.
+
+### La Solution : L'Indexation en Table de Hachage (O(n + m))
+En transformant d'abord le tableau de produits en une `Map` ou un dictionnaire, nous réduisons le coût de recherche unitaire de `O(m)` à **`O(1)`** :
+
+```typescript
+interface Product {
+  readonly id: string;
+  readonly name: string;
+  readonly priceCents: number;
+}
+
+interface Order {
+  readonly id: string;
+  readonly productId: string;
+  readonly quantity: number;
+}
+
+interface EnrichedOrder extends Order {
+  readonly product: Product | null;
+}
+
+export function joinOrdersWithProducts(
+  orders: readonly Order[],
+  products: readonly Product[]
+): readonly EnrichedOrder[] {
+  // Étape 1 : Indexer les produits par leur ID -> O(m)
+  const productMap = new Map<string, Product>();
+  for (let i = 0; i < products.length; i++) {
+    const product = products[i];
+    if (product) {
+      productMap.set(product.id, product);
+    }
+  }
+
+  // Étape 2 : Joindre les commandes en accès direct O(1) -> O(n)
+  const result: EnrichedOrder[] = new Array(orders.length);
+  for (let i = 0; i < orders.length; i++) {
+    const order = orders[i];
+    if (order) {
+      result[i] = {
+        ...order,
+        product: productMap.get(order.productId) ?? null,
+      };
+    }
+  }
+
+  return result;
+}
+```
+
+### Le Résultat en Production :
+- **Avant :** 3 500 ms (Crash potentiel du thread principal).
+- **Après :** 18 ms (Étape 1 = 10 000 opérations + Étape 2 = 50 000 opérations = **60 000 opérations** au total, soit un gain de performance d'un facteur **8 300**).
+
+---
+
+## 4. `Object` vs `Map` : Le Quel Choisir ?
+
+Beaucoup de développeurs utilisent systématiquement des objets JavaScript ordinaires (`Record<string, T>`) comme dictionnaires. Bien que pratique, `Map` surpasse souvent l'objet brut dans les scénarios intensifs.
+
+```txt
+┌─────────────────────────────────┬─────────────────────────────────┐
+│     OBJECT (Record<string, T>)   │            MAP<K, V>            │
+├─────────────────────────────────┼─────────────────────────────────┤
+│ • Clés limitées à string/symbol │ • Clés de N'IMPORTE quel type   │
+│ • Risque de collision (prototype)│ • Zéro collision de clés        │
+│ • Object.keys(obj).length = O(n)│ • map.size = O(1) instantané    │
+│ • Sérialisable directement JSON │ • Nécessite Array.from()        │
+│ • Idéal pour configs statiques  │ • Idéal pour caches & lookups   │
+└─────────────────────────────────┴─────────────────────────────────┘
+```
+
+> [!TIP]
+> `Object.keys(obj).length` alloue un nouveau tableau d'octets en mémoire et parcourt toutes les propriétés : c'est une opération en **`O(n)`**. À l'inverse, `map.size` est une propriété scalaire interne calculée en **`O(1)`**. Dans une boucle ou un sélecteur React exécuté à chaque rendu, cette différence est monumentale.
+
+---
+
+## 5. Le Pouvoir Méconnu du `Set` pour la Déduplication et le Filtrage
+
+Combien de fois voyez-vous ce pattern dans une base de code ?
+
+```typescript
+// Mauvaise pratique : O(n * k)
+const uniqueIds = ids.filter((id, index) => ids.indexOf(id) === index);
+```
+
+Ici, `indexOf` effectue un parcours complet du tableau pour chaque élément : pour un tableau de 10 000 éléments, c'est encore une complexité quadratique en **`O(n²)`**.
+
+### L'Alternative Optimale avec `Set` (O(n)) :
+```typescript
+// Bonne pratique : O(n)
+const uniqueIds = Array.from(new Set(ids));
+```
+
+Et si vous devez filtrer une liste d'utilisateurs pour ne conserver que ceux appartenant à une liste d'exclusion :
+
+```typescript
+// Vérification instantanée en O(1) avec Set.has()
+export function filterAllowedUsers(
+  users: readonly User[],
+  bannedUserIds: readonly string[]
+): readonly User[] {
+  // Set.has() est en O(1), alors que Array.includes() est en O(k)
+  const bannedSet = new Set(bannedUserIds);
+
+  return users.filter((user) => !bannedSet.has(user.id));
+}
+```
+
+---
+
+## 6. Guide Décisionnel : Quelle Structure Choisir ?
+
+Posez-vous ces 4 questions dès que vous recevez un payload du backend :
+
+1. **Avez-vous besoin d'itérer séquentiellement ou de trier pour afficher une liste UI ?**
+   → Gardez un **`Array<T>`**.
+2. **Avez-vous besoin de retrouver un élément spécifique par son identifiant unique plusieurs fois par seconde ?**
+   → Normalisez le payload en **`Map<string, T>`** ou **`Record<string, T>`**.
+3. **Avez-vous besoin de vérifier si un identifiant est présent ou absent ?**
+   → Utilisez un **`Set<T>`** (`set.has(id)` est instantané).
+4. **Vos données doivent-elles être fréquemment ajoutées et supprimées dynamiquement ?**
+   → Privilégiez **`Map`** pour éviter les réallocations d'objets du moteur V8.
+
+Maîtriser la complexité algorithmique de vos structures de données en mémoire garantit des applications ultra-réactives, même face à des volumes de données imprévus en production.

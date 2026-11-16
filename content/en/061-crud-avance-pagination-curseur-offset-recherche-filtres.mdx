@@ -1,0 +1,240 @@
+---
+title: "Advanced CRUD: Cursor vs. Offset Pagination, Search, and Filtering"
+description: "Build production-grade CRUDs: Keyset cursor pagination, offset bottlenecks, GIN/trigram text indexing, and high-performance composite SQL filters."
+tag: "Backend"
+publishedAt: "2026-11-08"
+published: true
+time: 14
+---
+
+# Advanced CRUD: Cursor vs. Offset Pagination, Search, and Filtering
+
+Building a basic CRUD endpoint across a toy dataset of 50 users takes 15 minutes in any modern web framework: a simple `SELECT * FROM users LIMIT 10 OFFSET 20`, a quick `WHERE name ILIKE '%john%'`, and you ship to staging.
+
+Until your production application grows past **500,000 records**, and that beginner CRUD implodes under heavy production load:
+- Page 5,000 of your data table takes **4.2 seconds** to respond, pinning database disk I/O at 100%.
+- Customers report seeing duplicate rows or missing entries when navigating to "Next Page" while new records are concurrently created.
+- A single free-text search spikes PostgreSQL CPU utilization because the query planner falls back to a grueling table-wide Sequential Scan.
+
+Designing senior-level CRUD architectures demands mastering **Keyset Cursor Pagination**, inverted text indexing, and deterministic multi-column query composition.
+
+---
+
+## 1. The Bottleneck of Offset-Based Pagination
+
+Offset pagination relies on two parameters: `LIMIT` (page size) and `OFFSET` (the row count skipped):
+
+```sql
+-- Page 1: Blazingly fast (1 ms)
+SELECT id, title, created_at FROM articles ORDER BY id DESC LIMIT 20 OFFSET 0;
+
+-- Page 5,000: Catastrophic latency (3,800 ms)
+SELECT id, title, created_at FROM articles ORDER BY id DESC LIMIT 20 OFFSET 100000;
+```
+
+### Why does `OFFSET 100000` degrade performance?
+A relational database has no magic teleportation mechanism to jump straight to row number 100,000. Under the hood, the SQL storage engine must:
+1. Sequentially read and sort **100,020 rows** from disk or memory buffers.
+2. Discard the first 100,000 rows.
+3. Return only the final 20 rows.
+
+The deeper a client navigates into the pagination stack, the slower the database responds: time complexity scales at **`O(N)`**.
+
+### The "Page Drift" Anomaly
+Suppose a user reads Page 1 (items 1 through 20). While they browse, other active users insert 5 new rows into the table.
+
+When the reader clicks "Next Page" (`OFFSET 20`), rows that previously sat at positions 16 through 20 on Page 1 have now shifted down to positions 21 through 25. **The user encounters 5 duplicate rows they just saw**. Conversely, if rows were deleted, items get skipped entirely without warning.
+
+---
+
+## 2. The Production Standard: Keyset Cursor Pagination
+
+Instead of instructing the database to *“skip 100,000 physical rows”*, cursor pagination instructs it: *“retrieve the first 20 records located immediately AFTER the last identifier I already examined”*.
+
+```sql
+-- Leverages direct B-Tree index seek: O(log N)
+SELECT id, title, created_at 
+FROM articles 
+WHERE id < 'art_last_seen_id' 
+ORDER BY id DESC 
+LIMIT 20;
+```
+
+```txt
+┌────────────────────────────────────────────────────────┐
+│             OFFSET PAGINATION (Slow: O(N))             │
+│ [ 1 .................... 100,000 ] ──> [ 20 rows ]     │
+│   (Scans and discards 100,000 intermediate records)    │
+└────────────────────────────────────────────────────────┘
+
+┌────────────────────────────────────────────────────────┐
+│             CURSOR PAGINATION (Fast: O(log N))         │
+│                [ B-Tree Index Seek ]                   │
+│                          │                             │
+│                          ▼                             │
+│               WHERE id < 'art_981' ──> [ 20 rows ]     │
+│   (Direct index seek with zero throwaway reads)        │
+└────────────────────────────────────────────────────────┘
+```
+
+### Core Benefits of Cursor Pagination:
+1. **Deterministic Latency:** Whether fetching page 1 or page 10,000, execution time remains identical (**sub-2ms** via `O(log N)` B-Tree index lookups).
+2. **Page Drift Immunity:** Concurrent writes or deletes never induce duplicate records or skipped rows.
+3. **Optimized for Infinite Scroll:** The gold standard across social feeds, event logs, and modern GraphQL Relay APIs.
+
+---
+
+## 3. Implementing a TypeScript Cursor Pagination Service
+
+To avoid leaking internal relational database primary keys directly to clients, cursors are typically packaged as opaque **Base64URL** strings:
+
+```typescript
+import { z } from 'zod';
+
+// Request parameter schema validation
+export const PaginationQuerySchema = z.object({
+  limit: z.coerce.number().min(1).max(100).default(20),
+  cursor: z.string().optional(),
+});
+
+export type PaginationQuery = z.infer<typeof PaginationQuerySchema>;
+
+export interface CursorPayload {
+  readonly id: string;
+  readonly createdAt: string;
+}
+
+export interface PaginatedResult<T> {
+  readonly items: readonly T[];
+  readonly nextCursor: string | null;
+  readonly hasMore: boolean;
+}
+
+// Opaque cursor encoding and decoding helpers
+export function encodeCursor(payload: CursorPayload): string {
+  return Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url');
+}
+
+export function decodeCursor(cursorString: string): CursorPayload | null {
+  try {
+    const raw = Buffer.from(cursorString, 'base64url').toString('utf8');
+    const parsed = JSON.parse(raw) as unknown;
+    
+    if (typeof parsed === 'object' && parsed !== null && 'id' in parsed && 'createdAt' in parsed) {
+      return parsed as CursorPayload;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+```
+
+### SQL Repository with Composite Cursor `(created_at, id)`:
+
+When sorting by timestamp, multiple records can share identical millisecond timestamps. Using a **composite cursor `(created_at, id)`** breaks ties and ensures deterministic ordering:
+
+```typescript
+export async function fetchArticlesByCursor(
+  db: DatabaseClient,
+  query: PaginationQuery
+): Promise<PaginatedResult<Article>> {
+  const pageSize = query.limit;
+  const decoded = query.cursor ? decodeCursor(query.cursor) : null;
+
+  // Senior Pro-Tip: Query for (limit + 1) rows to determine if a next page exists
+  // without triggering a costly separate SELECT COUNT(*) query!
+  const rows = await db.query<Article>(`
+    SELECT id, title, created_at
+    FROM articles
+    WHERE (
+      $1::timestamptz IS NULL OR 
+      (created_at, id) < ($1::timestamptz, $2::text)
+    )
+    ORDER BY created_at DESC, id DESC
+    LIMIT $3;
+  `, [decoded?.createdAt ?? null, decoded?.id ?? null, pageSize + 1]);
+
+  const hasMore = rows.length > pageSize;
+  const items = hasMore ? rows.slice(0, pageSize) : rows;
+
+  let nextCursor: string | null = null;
+  const lastItem = items[items.length - 1];
+
+  if (hasMore && lastItem) {
+    nextCursor = encodeCursor({
+      id: lastItem.id,
+      createdAt: lastItem.createdAt.toISOString(),
+    });
+  }
+
+  return {
+    items,
+    nextCursor,
+    hasMore,
+  };
+}
+```
+
+---
+
+## 4. Advanced Search: Escaping the `ILIKE '%query%'` Trap
+
+Another chronic scalability bottleneck in typical CRUD implementations is naive substring search:
+
+```sql
+-- The classic production anti-pattern:
+SELECT * FROM products WHERE name ILIKE '%shoes%';
+```
+
+Standard B-Tree indexes function like an alphabetical dictionary: they can only accelerate lookups when the prefix is known (`LIKE 'shoes%'`).
+
+As soon as a leading wildcard `%` is introduced, B-Tree indexes are rendered useless, forcing PostgreSQL to perform a complete **Sequential Scan** across the entire table.
+
+### The PostgreSQL Solution: GIN Trigram Indexes (`pg_trgm`)
+The PostgreSQL `pg_trgm` extension slices words into trigrams (overlapping 3-character groups). It allows the database to use a **Generalized Inverted Index (GIN)** for high-speed substring matching:
+
+```sql
+-- 1. Enable native trigram extension
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
+-- 2. Create GIN trigram index on target column
+CREATE INDEX idx_products_name_trgm ON products USING gin (name gin_trgm_ops);
+
+-- 3. Query now performs a lightning-fast Bitmap Index Scan!
+SELECT id, name, price 
+FROM products 
+WHERE name ILIKE '%shoes%' 
+LIMIT 20;
+```
+
+---
+
+## 5. Composite Filters and the Leftmost Prefix Rule
+
+When users apply multiple concurrent filters (Status, Category, Date range, Price), generating individual indexes for each column causes index bloat.
+
+Instead, engineer targeted **Composite B-Tree Indexes**:
+
+```sql
+CREATE INDEX idx_orders_status_created ON orders (status, created_at);
+```
+
+> [!IMPORTANT]
+> **The Leftmost Prefix Rule:** A composite index can only be leveraged if the `WHERE` clause filters on the leading indexed column (`status`).
+> - `WHERE status = 'PAID' AND created_at > NOW() - INTERVAL '7 days'` → **Fully utilizes composite index.**
+> - `WHERE created_at > NOW() - INTERVAL '7 days'` → **Index ignored** (since the index starts with `status`, the planner cannot scan `created_at` in isolation).
+
+---
+
+## Strategy Comparison Matrix
+
+| Dimension | Offset-Based (`LIMIT / OFFSET`) | Keyset Cursor Pagination |
+| :--- | :--- | :--- |
+| **Time Complexity** | `O(N)` (degrades linearly with depth) | `O(log N)` (constant sub-millisecond) |
+| **Mutation Resilience** | Fragile (vulnerable to duplicate/missing rows) | Resilient (anchored to unique immutable key) |
+| **Arbitrary Page Jumping** | Supported (e.g., jump directly to page 42) | Not supported (sequential forward navigation) |
+| **Total Count Overhead** | Requires slow `SELECT COUNT(*)` for UI | Eliminated (inferred via `limit + 1` peek) |
+| **Recommended Scope** | Small internal admin tools (< 1,000 rows) | Production feeds, public REST APIs, e-commerce |
+
+Transitioning from offset queries to composite keyset cursors, replacing unindexed `ILIKE` scans with GIN trigram indexes, and avoiding redundant `COUNT(*)` calculations turns sluggish CRUD operations into resilient, sub-10ms APIs capable of scaling across millions of rows.
